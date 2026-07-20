@@ -1,6 +1,8 @@
 import { reportNonFatalError } from "@crikket/shared/lib/errors"
+import type { BugReportVisibility } from "@crikket/shared/constants/bug-report"
 import { Button } from "@crikket/ui/components/ui/button"
 import { Keyboard } from "lucide-react"
+import { useState } from "react"
 import { PopupCaptureActions } from "@/components/popup-capture-actions"
 import { useCommandShortcuts } from "@/hooks/use-command-shortcuts"
 import { useHotkeyTrigger } from "@/hooks/use-hotkey-trigger"
@@ -13,6 +15,10 @@ import {
 
 function App() {
   const shortcuts = useCommandShortcuts()
+  const [visibility, setVisibility] = useState<BugReportVisibility>("private")
+  const [activeCaptureType, setActiveCaptureType] = useState<
+    "video" | "screenshot" | "fullscreen" | null
+  >(null)
   const {
     captureError,
     clearPendingCapture,
@@ -41,7 +47,8 @@ function App() {
     enabled: !isRecordingInProgress,
     errorMessage: "Failed to start capture from hotkey popup flow",
     onTrigger: async () => {
-      await startCapture("video")
+      setActiveCaptureType("video")
+      await startCapture("video", visibility)
     },
   })
   useHotkeyTrigger({
@@ -49,7 +56,8 @@ function App() {
     enabled: !isRecordingInProgress,
     errorMessage: "Failed to start screenshot capture from hotkey popup flow",
     onTrigger: async () => {
-      await startCapture("screenshot")
+      setActiveCaptureType("screenshot")
+      await startCapture("screenshot", visibility)
     },
   })
 
@@ -71,22 +79,31 @@ function App() {
         <PopupCaptureActions
           isBusy={isBusy}
           isRecordingInProgress={isRecordingInProgress}
+          activeCaptureType={activeCaptureType}
           onClearPendingCapture={clearPendingCapture}
-          onRequestCapture={requestCapture}
-          onStartCapture={startCapture}
+          onRequestCapture={(captureType) => {
+            setActiveCaptureType(captureType)
+            requestCapture(captureType)
+          }}
+          onStartCapture={async (captureType, currentVisibility) => {
+            setActiveCaptureType(captureType)
+            await startCapture(captureType, currentVisibility)
+          }}
           onStopFromPopup={stopFromPopup}
           pendingCaptureType={pendingCaptureType}
+          visibility={visibility}
           recordingCountdown={recordingCountdown}
           recordingDurationMs={recordingDurationMs}
           startRecordingShortcut={shortcuts.startRecording}
           startScreenshotShortcut={shortcuts.startScreenshot}
           stopRecordingShortcut={shortcuts.stopRecording}
+          onVisibilityChange={setVisibility}
         />
 
         <div className="rounded-md border bg-muted p-3">
           <p className="text-muted-foreground text-xs leading-relaxed">
-            We only capture your current browser tab. A new tab will open for
-            you to review and submit your report.
+            You can capture the current tab or the full screen. A new tab will
+            open for you to review and submit your report.
           </p>
         </div>
 

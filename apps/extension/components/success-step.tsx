@@ -1,4 +1,5 @@
 import { Button } from "@crikket/ui/components/ui/button"
+import type { BugReportVisibility } from "@crikket/shared/constants/bug-report"
 import { Check } from "lucide-react"
 import { useState } from "react"
 
@@ -6,6 +7,7 @@ interface SuccessStepProps {
   onOpenRecording: () => void
   onCopyLink: () => void
   onClose: () => void
+  visibility: BugReportVisibility
   warnings?: string[]
 }
 
@@ -13,6 +15,7 @@ export function SuccessStep({
   onOpenRecording,
   onCopyLink,
   onClose,
+  visibility,
   warnings = [],
 }: SuccessStepProps) {
   const [isCopied, setIsCopied] = useState(false)
@@ -26,6 +29,9 @@ export function SuccessStep({
         <h2 className="font-semibold text-2xl">Bug Report Submitted!</h2>
         <p className="mt-2 text-muted-foreground">
           Your bug report has been created successfully
+        </p>
+        <p className="mt-1 font-medium text-sm capitalize text-foreground/80">
+          Visibility: {visibility}
         </p>
       </div>
 

@@ -1,7 +1,11 @@
+import { browser } from "wxt/browser"
+
 export type CaptureContext = { title?: string; url?: string }
+export type BugReportVisibility = "public" | "private"
 
 export const CAPTURE_CONTEXT_STORAGE_KEY = "captureContext"
 export const CAPTURE_TAB_ID_STORAGE_KEY = "captureTabId"
+export const BUG_REPORT_VISIBILITY_STORAGE_KEY = "bugReportVisibility"
 export const RECORDING_IN_PROGRESS_STORAGE_KEY = "recordingInProgress"
 export const RECORDER_TAB_ID_STORAGE_KEY = "recorderTabId"
 export const RECORDING_COUNTDOWN_ENDS_AT_STORAGE_KEY =
@@ -31,7 +35,7 @@ export const hasCaptureContext = (context: CaptureContext): boolean =>
   Boolean(context.title || context.url)
 
 export const getActiveTabContext = async (): Promise<CaptureContext> => {
-  const tabs = await chrome.tabs.query({
+  const tabs = await browser.tabs.query({
     active: true,
     currentWindow: true,
   })
@@ -45,8 +49,10 @@ export const getActiveTabContext = async (): Promise<CaptureContext> => {
 
 export const readAndClearStoredCaptureContext =
   async (): Promise<CaptureContext> => {
-    const stored = await chrome.storage.local.get([CAPTURE_CONTEXT_STORAGE_KEY])
-    await chrome.storage.local.remove([CAPTURE_CONTEXT_STORAGE_KEY])
+    const stored = await browser.storage.local.get([
+      CAPTURE_CONTEXT_STORAGE_KEY,
+    ])
+    await browser.storage.local.remove([CAPTURE_CONTEXT_STORAGE_KEY])
 
     return sanitizeCaptureContext(
       stored[CAPTURE_CONTEXT_STORAGE_KEY] as CaptureContext | undefined
@@ -54,8 +60,8 @@ export const readAndClearStoredCaptureContext =
   }
 
 export const readAndClearCaptureTabId = async (): Promise<number | null> => {
-  const stored = await chrome.storage.local.get([CAPTURE_TAB_ID_STORAGE_KEY])
-  await chrome.storage.local.remove([CAPTURE_TAB_ID_STORAGE_KEY])
+  const stored = await browser.storage.local.get([CAPTURE_TAB_ID_STORAGE_KEY])
+  await browser.storage.local.remove([CAPTURE_TAB_ID_STORAGE_KEY])
 
   const tabId = stored[CAPTURE_TAB_ID_STORAGE_KEY]
   return typeof tabId === "number" ? tabId : null

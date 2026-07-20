@@ -5,6 +5,10 @@ import {
 import { readDebuggerSessionIdFromSearch } from "@crikket/capture-core/debugger/recorder-session"
 import type { BugReportDebuggerPayload } from "@crikket/capture-core/debugger/types"
 import { env } from "@crikket/env/extension"
+import {
+  BUG_REPORT_VISIBILITY_OPTIONS,
+  type BugReportVisibility,
+} from "@crikket/shared/constants/bug-report"
 import type { Priority } from "@crikket/shared/constants/priorities"
 import { reportNonFatalError } from "@crikket/shared/lib/errors"
 import {
@@ -56,6 +60,12 @@ function App() {
   const shortcuts = useCommandShortcuts()
   const [state, setState] = useState<State>("idle")
   const [captureType, setCaptureType] = useState<CaptureType>("video")
+  const [initialVisibility, setInitialVisibility] = useState<BugReportVisibility>(
+    BUG_REPORT_VISIBILITY_OPTIONS.private
+  )
+  const [submittedVisibility, setSubmittedVisibility] = useState<BugReportVisibility>(
+    "private"
+  )
   const [startTime, setStartTime] = useState<number | null>(null)
   const [recordedDurationMs, setRecordedDurationMs] = useState<number | null>(
     null
@@ -75,14 +85,17 @@ function App() {
 
   const {
     startRecording: startCapture,
+    startFullscreenRecording: startFullscreenCapture,
     stopRecording: stopCapture,
-    takeScreenshot: captureScreenshot,
     recordedBlob,
     screenshotBlob,
     error: captureError,
     reset: resetCapture,
     setScreenshotBlob,
   } = useScreenCapture()
+  const [videoCaptureSource, setVideoCaptureSource] = useState<
+    "tab" | "fullscreen"
+  >("tab")
 
   const duration = useTimer(startTime, state === "recording")
 
@@ -196,18 +209,37 @@ function App() {
     }
   }, [debuggerSessionId, startCapture])
 
-  const handleStartCapture = useCallback(async () => {
-    if (captureType === "screenshot") {
-      const blob = await captureScreenshot()
-      if (blob) {
-        setRecordedDurationMs(null)
-        setState("stopped")
+  const startFullscreenVideoCapture = useCallback(async () => {
+    const success = await startFullscreenCapture()
+    if (success) {
+      const startedAt = Date.now()
+      const sessionId = debuggerSessionId
+      if (sessionId) {
+        await markDebuggerRecordingStarted({
+          sessionId,
+          recordingStartedAt: startedAt,
+        }).catch((error: unknown) => {
+          reportNonFatalError(
+            `Failed to mark debugger recording start for session ${sessionId}`,
+            error
+          )
+        })
       }
+
+      setStartTime(startedAt)
+      setRecordedDurationMs(null)
+      setState("recording")
+    }
+  }, [debuggerSessionId, startFullscreenCapture])
+
+  const startVideoCaptureFromSource = useCallback(async () => {
+    if (videoCaptureSource === "fullscreen") {
+      await startFullscreenVideoCapture()
       return
     }
 
     await startVideoCapture()
-  }, [captureScreenshot, captureType, startVideoCapture])
+  }, [startFullscreenVideoCapture, startVideoCapture, videoCaptureSource])
 
   useEffect(() => {
     if (state === "recording" && recordedBlob) {
@@ -257,12 +289,15 @@ function App() {
 
   useRecorderInit({
     onCaptureTypeChange: setCaptureType,
+    onVideoCaptureSourceLoaded: setVideoCaptureSource,
     onScreenshotLoaded: (blob) => {
       setScreenshotBlob(blob)
       setRecordedDurationMs(null)
       setState("stopped")
     },
-    onStartRecording: handleStartCapture,
+    onStartRecording: startVideoCaptureFromSource,
+    onStartFullscreenRecording: startFullscreenVideoCapture,
+    onVisibilityLoaded: setInitialVisibility,
     onError: (err) => setSubmitError(err),
   })
 
@@ -272,6 +307,7 @@ function App() {
     setResultUrl("")
     setSubmitError(null)
     setSubmissionWarnings([])
+    setSubmittedVisibility("private")
     setPreSubmitWarnings([])
     setDebuggerSummary(EMPTY_DEBUGGER_SUMMARY)
     setRecordedDurationMs(null)
@@ -285,6 +321,7 @@ function App() {
     title: string
     description: string
     priority: Priority
+    visibility: BugReportVisibility
   }) => {
     const blob = captureType === "video" ? recordedBlob : screenshotBlob
     if (!blob || blob.size === 0) {
@@ -318,6 +355,7 @@ function App() {
         attachmentType: captureType,
         title: normalizeOptionalText(values.title, 200),
         priority: values.priority,
+        visibility: values.visibility,
         description: normalizeOptionalText(values.description, 3000),
         url: captureContextSubmissionData.normalizedUrl,
         metadata: {
@@ -342,6 +380,7 @@ function App() {
       }
 
       setResultUrl(`${env.VITE_APP_URL}${result.shareUrl}`)
+      setSubmittedVisibility(values.visibility)
       setSubmissionWarnings(
         dedupeMessages([...warnings, ...(result.warnings ?? [])])
       )
@@ -365,6 +404,14 @@ function App() {
     return URL.createObjectURL(activeBlob)
   }, [activeBlob])
 
+  useEffect(() => {
+    if (!previewUrl) {
+      return
+    }
+
+    return () => URL.revokeObjectURL(previewUrl)
+  }, [previewUrl])
+
   const error = captureError || submitError
 
   useEffect(() => {
@@ -377,7 +424,7 @@ function App() {
   }, [duration, state])
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-slate-50 to-slate-100/80 p-6 sm:p-8">
+    <div className="flex min-h-screen items-center justify-center bg-linear-to-b from-slate-50 to-slate-100/80 p-6 sm:p-8">
       <Card className="w-full max-w-3xl border-border/80 shadow-lg shadow-slate-950/5">
         <CardHeader className="gap-2 border-b bg-muted/20 text-left">
           <CardTitle className="flex items-center gap-2 text-xl sm:text-2xl">
@@ -417,6 +464,7 @@ function App() {
               captureType={captureType}
               debuggerSummary={debuggerSummary}
               initialTitle={suggestedTitle}
+              initialVisibility={initialVisibility}
               isSubmitting={state === "submitting"}
               onCancel={handleReset}
               onSubmit={handleSubmit}
@@ -436,6 +484,7 @@ function App() {
               onClose={() => window.close()}
               onCopyLink={() => navigator.clipboard.writeText(resultUrl)}
               onOpenRecording={() => window.open(resultUrl, "_blank")}
+              visibility={submittedVisibility}
               warnings={submissionWarnings}
             />
           ) : null}

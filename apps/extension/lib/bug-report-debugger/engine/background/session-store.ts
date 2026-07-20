@@ -238,7 +238,9 @@ export function createDebuggerSessionStore(): DebuggerSessionStore {
     sessionsById.set(sessionId, session)
     tabToSession.set(payload.captureTabId, sessionId)
     schedulePersist()
-    await injectDebuggerScriptIntoTab(payload.captureTabId)
+    if (payload.captureType === "screenshot") {
+      await injectDebuggerScriptIntoTab(payload.captureTabId)
+    }
 
     return {
       sessionId,
@@ -249,7 +251,9 @@ export function createDebuggerSessionStore(): DebuggerSessionStore {
   const injectDebuggerScriptForTab = async (tabId: number): Promise<void> => {
     await ensureLoaded()
 
-    if (!tabToSession.has(tabId)) {
+    const sessionId = tabToSession.get(tabId)
+    const session = sessionId ? sessionsById.get(sessionId) : undefined
+    if (!session || session.recordingStartedAt === null) {
       return
     }
 
@@ -309,6 +313,7 @@ export function createDebuggerSessionStore(): DebuggerSessionStore {
 
     session.recordingStartedAt = Math.floor(payload.recordingStartedAt)
     schedulePersist()
+    await injectDebuggerScriptIntoTab(session.captureTabId)
   }
 
   const discardSession = async (sessionId: string) => {
@@ -332,7 +337,9 @@ export function createDebuggerSessionStore(): DebuggerSessionStore {
       return
     }
 
-    if (!tabToSession.has(tabId)) {
+    const sessionId = tabToSession.get(tabId)
+    const session = sessionId ? sessionsById.get(sessionId) : undefined
+    if (!session || session.recordingStartedAt === null) {
       return
     }
 

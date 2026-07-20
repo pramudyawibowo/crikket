@@ -1,4 +1,8 @@
 import { appendDebuggerSessionIdToUrl } from "@crikket/capture-core/debugger/recorder-session"
+import {
+  BUG_REPORT_VISIBILITY_OPTIONS,
+  type BugReportVisibility,
+} from "@crikket/shared/constants/bug-report"
 import { reportNonFatalError } from "@crikket/shared/lib/errors"
 import { useState } from "react"
 import {
@@ -6,6 +10,7 @@ import {
   startDebuggerSession,
 } from "@/lib/bug-report-debugger/client"
 import {
+  BUG_REPORT_VISIBILITY_STORAGE_KEY,
   CAPTURE_CONTEXT_STORAGE_KEY,
   CAPTURE_TAB_ID_STORAGE_KEY,
   type CaptureContext,
@@ -16,7 +21,7 @@ import {
   RECORDING_STARTED_AT_STORAGE_KEY,
 } from "@/lib/capture-context"
 
-export type PopupCaptureType = "video" | "screenshot"
+export type PopupCaptureType = "video" | "screenshot" | "fullscreen"
 
 const RECORDING_COUNTDOWN_SECONDS = 3
 const ACTIVE_TAB_ERROR_MESSAGE =
@@ -29,7 +34,10 @@ interface UsePopupCaptureReturn {
   recordingCountdown: number | null
   requestCapture: (captureType: PopupCaptureType) => void
   clearPendingCapture: () => void
-  startCapture: (captureType: PopupCaptureType) => Promise<void>
+  startCapture: (
+    captureType: PopupCaptureType,
+    visibility?: BugReportVisibility
+  ) => Promise<void>
 }
 
 interface ActiveCaptureTab {
@@ -55,7 +63,10 @@ export function usePopupCapture(): UsePopupCaptureReturn {
     setPendingCaptureType(null)
   }
 
-  const startCapture = async (captureType: PopupCaptureType) => {
+  const startCapture = async (
+    captureType: PopupCaptureType,
+    visibility: BugReportVisibility = BUG_REPORT_VISIBILITY_OPTIONS.private
+  ) => {
     setIsCapturing(true)
     setCaptureError(null)
 
@@ -66,7 +77,7 @@ export function usePopupCapture(): UsePopupCaptureReturn {
       const activeTab = await getActiveCaptureTab()
 
       debuggerSessionId = await initializeDebuggerSession(
-        captureType,
+        captureType === "screenshot" ? "screenshot" : "video",
         activeTab.id
       )
 
@@ -75,12 +86,20 @@ export function usePopupCapture(): UsePopupCaptureReturn {
           activeTab,
           captureContext,
           debuggerSessionId,
+          visibility,
+        })
+      } else if (captureType === "fullscreen") {
+        await startFullscreenCapture({
+          captureContext,
+          debuggerSessionId,
+          visibility,
         })
       } else {
         await startVideoCapture({
           activeTab,
           captureContext,
           debuggerSessionId,
+          visibility,
           setRecordingCountdown,
         })
       }
@@ -130,7 +149,7 @@ async function getActiveCaptureTab(): Promise<ActiveCaptureTab> {
 }
 
 async function initializeDebuggerSession(
-  captureType: PopupCaptureType,
+  captureType: "video" | "screenshot",
   captureTabId: number
 ): Promise<string> {
   const session = await startDebuggerSession({
@@ -146,6 +165,7 @@ async function startScreenshotCapture(input: {
   activeTab: ActiveCaptureTab
   captureContext: CaptureContext
   debuggerSessionId: string
+  visibility: BugReportVisibility
 }): Promise<void> {
   if (input.activeTab.windowId === null) {
     throw new Error(ACTIVE_TAB_ERROR_MESSAGE)
@@ -160,6 +180,7 @@ async function startScreenshotCapture(input: {
 
   await chrome.storage.local.set({
     [CAPTURE_CONTEXT_STORAGE_KEY]: input.captureContext,
+    [BUG_REPORT_VISIBILITY_STORAGE_KEY]: input.visibility,
     pendingScreenshot: base64data,
   })
 
@@ -177,6 +198,7 @@ async function startVideoCapture(input: {
   activeTab: ActiveCaptureTab
   captureContext: CaptureContext
   debuggerSessionId: string
+  visibility: BugReportVisibility
   setRecordingCountdown: (value: number | null) => void
 }): Promise<void> {
   const countdownEndsAt = Date.now() + RECORDING_COUNTDOWN_SECONDS * 1000
@@ -193,6 +215,7 @@ async function startVideoCapture(input: {
   await chrome.storage.local.set({
     [CAPTURE_CONTEXT_STORAGE_KEY]: input.captureContext,
     [CAPTURE_TAB_ID_STORAGE_KEY]: input.activeTab.id,
+    [BUG_REPORT_VISIBILITY_STORAGE_KEY]: input.visibility,
     startRecordingImmediately: true,
   })
 
@@ -202,7 +225,37 @@ async function startVideoCapture(input: {
   )
 
   const recorderTab = await chrome.tabs.create({
-    active: false,
+    active: true,
+    url: recorderUrl,
+  })
+
+  if (typeof recorderTab.id === "number") {
+    await chrome.storage.local.set({
+      [RECORDER_TAB_ID_STORAGE_KEY]: recorderTab.id,
+    })
+  }
+}
+
+async function startFullscreenCapture(input: {
+  captureContext: CaptureContext
+  debuggerSessionId: string
+  visibility: BugReportVisibility
+}): Promise<void> {
+  await chrome.storage.local.set({
+    [CAPTURE_CONTEXT_STORAGE_KEY]: input.captureContext,
+    [BUG_REPORT_VISIBILITY_STORAGE_KEY]: input.visibility,
+    startRecordingImmediately: true,
+  })
+
+  const recorderUrl = appendDebuggerSessionIdToUrl(
+    chrome.runtime.getURL(
+      "/recorder.html?captureType=video&captureSource=fullscreen"
+    ),
+    input.debuggerSessionId
+  )
+
+  const recorderTab = await chrome.tabs.create({
+    active: true,
     url: recorderUrl,
   })
 

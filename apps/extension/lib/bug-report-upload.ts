@@ -4,6 +4,7 @@ import {
   uploadArtifactToStorage,
 } from "@crikket/capture-core/upload/client"
 import type { Priority } from "@crikket/shared/constants/priorities"
+import type { BugReportVisibility } from "@crikket/shared/constants/bug-report"
 import { client } from "./orpc"
 
 export async function submitBugReportWithUploads(input: {
@@ -29,6 +30,7 @@ export async function submitBugReportWithUploads(input: {
   priority: Priority
   title?: string
   url?: string
+  visibility: BugReportVisibility
 }): Promise<Awaited<ReturnType<typeof client.bugReport.finalizeUpload>>> {
   const uploadSession = await client.bugReport.createUpload({
     attachmentType: input.attachmentType,
@@ -41,7 +43,7 @@ export async function submitBugReportWithUploads(input: {
     priority: input.priority,
     title: input.title,
     url: input.url,
-    visibility: "private",
+    visibility: input.visibility,
   })
 
   const debuggerArtifact = await buildDebuggerArtifactForUpload(
