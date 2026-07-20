@@ -60,6 +60,7 @@ export function createS3StorageProvider(
       endpoint: options.endpoint,
       addressingStyle: options.addressingStyle,
     }),
+    tls: resolveS3Tls(options.endpoint),
     requestChecksumCalculation: "WHEN_REQUIRED",
     responseChecksumValidation: "WHEN_REQUIRED",
     credentials: {
@@ -156,8 +157,15 @@ export function createS3StorageProvider(
           })
         )
         return true
-      } catch {
-        return false
+      } catch (error) {
+        if (isS3NotFoundError(error)) {
+          return false
+        }
+
+        throw new Error(
+          `Failed to check if file exists in cloud storage (bucket: ${options.bucket}, key: ${filename}, endpoint: ${options.endpoint ?? "aws-default"}): ${error instanceof Error ? error.message : "Unknown error"}`,
+          { cause: error }
+        )
       }
     },
     async read(filename: string): Promise<Buffer> {
@@ -434,6 +442,32 @@ export function resolveS3ForcePathStyle(input: {
   }
 
   return !isAwsS3Hostname(hostname)
+}
+
+export function resolveS3Tls(endpoint: string | undefined): boolean {
+  if (!endpoint) {
+    return true
+  }
+
+  try {
+    return new URL(endpoint).protocol !== "http:"
+  } catch {
+    return true
+  }
+}
+
+function isS3NotFoundError(error: unknown): boolean {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "name" in error &&
+    typeof (error as { name: unknown }).name === "string"
+  ) {
+    const name = (error as { name: string }).name
+    return name === "NotFound" || name === "NoSuchKey"
+  }
+
+  return false
 }
 
 function getEndpointHostname(endpoint: string): string | null {

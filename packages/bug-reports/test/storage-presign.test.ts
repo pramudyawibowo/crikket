@@ -53,9 +53,10 @@ mock.module("@crikket/shared/lib/errors", () => ({
 
 let createS3StorageProvider: typeof import("../src/lib/storage").createS3StorageProvider
 let resolveS3ForcePathStyle: typeof import("../src/lib/storage").resolveS3ForcePathStyle
+let resolveS3Tls: typeof import("../src/lib/storage").resolveS3Tls
 
 beforeAll(async () => {
-  ;({ createS3StorageProvider, resolveS3ForcePathStyle } = await import(
+  ;({ createS3StorageProvider, resolveS3ForcePathStyle, resolveS3Tls } = await import(
     "../src/lib/storage"
   ))
 })
@@ -200,6 +201,29 @@ describe("createUploadUrl", () => {
     expect(parsed.searchParams.has("x-amz-checksum-crc32")).toBeFalse()
     expect(parsed.searchParams.has("x-amz-sdk-checksum-algorithm")).toBeFalse()
   })
+
+  it("generates HTTP presigned URLs for HTTP endpoints", async () => {
+    const storage = createS3StorageProvider({
+      bucket: "bug-report-bucket",
+      region: "auto",
+      endpoint: "http://localhost:9000",
+      accessKeyId: "access",
+      secretAccessKey: "secret",
+    })
+
+    const upload = await storage.createUploadUrl({
+      filename: "organizations/org_123/bug-reports/br_123/capture/video.webm",
+      contentType: "video/webm",
+    })
+
+    const parsed = new URL(upload.url)
+
+    expect(parsed.protocol).toBe("http:")
+    expect(parsed.origin).toBe("http://localhost:9000")
+    expect(parsed.pathname).toBe(
+      "/bug-report-bucket/organizations/org_123/bug-reports/br_123/capture/video.webm"
+    )
+  })
 })
 
 describe("resolveS3ForcePathStyle", () => {
@@ -256,5 +280,27 @@ describe("resolveS3ForcePathStyle", () => {
         addressingStyle: "virtual",
       })
     ).toBeFalse()
+  })
+})
+
+describe("resolveS3Tls", () => {
+  it("returns true when no endpoint is configured", () => {
+    expect(resolveS3Tls(undefined)).toBeTrue()
+  })
+
+  it("returns true for HTTPS endpoints", () => {
+    expect(resolveS3Tls("https://s3.amazonaws.com")).toBeTrue()
+    expect(resolveS3Tls("https://localhost:9000")).toBeTrue()
+    expect(resolveS3Tls("https://minio.example.com")).toBeTrue()
+  })
+
+  it("returns false for HTTP endpoints", () => {
+    expect(resolveS3Tls("http://localhost:9000")).toBeFalse()
+    expect(resolveS3Tls("http://minio.local:9000")).toBeFalse()
+    expect(resolveS3Tls("http://192.168.1.100:9000")).toBeFalse()
+  })
+
+  it("returns true for invalid URLs", () => {
+    expect(resolveS3Tls("not-a-url")).toBeTrue()
   })
 })
