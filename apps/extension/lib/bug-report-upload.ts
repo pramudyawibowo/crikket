@@ -59,28 +59,62 @@ export async function submitBugReportWithUploads(input: {
   const debuggerArtifact = await buildDebuggerArtifactForUpload(
     input.debuggerPayload
   )
-  const uploads: Promise<void>[] = [
-    uploadArtifactToStorage(uploadSession.captureUpload, input.attachment, {
-      fallback: async () => {
-        const base64Data = await blobToBase64(input.attachment)
-        await client.bugReport.uploadProxy({
-          id: uploadSession.bugReportId,
-          artifactKind: "capture",
-          base64Data,
-          contentType: input.attachment.type || undefined,
-        })
-      },
-    }),
-  ]
+  const uploadMode = uploadSession.uploadMode ?? "auto"
 
-  if (uploadSession.debuggerUpload && debuggerArtifact) {
-    uploads.push(
-      uploadArtifactToStorage(
-        uploadSession.debuggerUpload,
-        debuggerArtifact.blob,
-        {
-          contentEncoding: debuggerArtifact.contentEncoding,
-          fallback: async () => {
+  const performCaptureUpload = async () => {
+    if (uploadMode === "proxy") {
+      const base64Data = await blobToBase64(input.attachment)
+      await client.bugReport.uploadProxy({
+        id: uploadSession.bugReportId,
+        artifactKind: "capture",
+        base64Data,
+        contentType: input.attachment.type || undefined,
+      })
+      return
+    }
+
+    const fallback =
+      uploadMode === "auto"
+        ? async () => {
+            const base64Data = await blobToBase64(input.attachment)
+            await client.bugReport.uploadProxy({
+              id: uploadSession.bugReportId,
+              artifactKind: "capture",
+              base64Data,
+              contentType: input.attachment.type || undefined,
+            })
+          }
+        : undefined
+
+    await uploadArtifactToStorage(
+      uploadSession.captureUpload,
+      input.attachment,
+      {
+        fallback,
+      }
+    )
+  }
+
+  const performDebuggerUpload = async () => {
+    if (!uploadSession.debuggerUpload || !debuggerArtifact) {
+      return
+    }
+
+    if (uploadMode === "proxy") {
+      const base64Data = await blobToBase64(debuggerArtifact.blob)
+      await client.bugReport.uploadProxy({
+        id: uploadSession.bugReportId,
+        artifactKind: "debugger",
+        base64Data,
+        contentType: "application/json",
+        contentEncoding: debuggerArtifact.contentEncoding,
+      })
+      return
+    }
+
+    const fallback =
+      uploadMode === "auto"
+        ? async () => {
             const base64Data = await blobToBase64(debuggerArtifact.blob)
             await client.bugReport.uploadProxy({
               id: uploadSession.bugReportId,
@@ -89,13 +123,20 @@ export async function submitBugReportWithUploads(input: {
               contentType: "application/json",
               contentEncoding: debuggerArtifact.contentEncoding,
             })
-          },
-        }
-      )
+          }
+        : undefined
+
+    await uploadArtifactToStorage(
+      uploadSession.debuggerUpload,
+      debuggerArtifact.blob,
+      {
+        contentEncoding: debuggerArtifact.contentEncoding,
+        fallback,
+      }
     )
   }
 
-  await Promise.all(uploads)
+  await Promise.all([performCaptureUpload(), performDebuggerUpload()])
 
   return client.bugReport.finalizeUpload({
     id: uploadSession.bugReportId,

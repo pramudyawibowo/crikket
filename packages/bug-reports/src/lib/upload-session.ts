@@ -12,6 +12,7 @@ import {
   type Priority,
 } from "@crikket/shared/constants/priorities"
 import { retryOnUniqueViolation } from "@crikket/shared/lib/server/retry-on-unique-violation"
+import { env } from "@crikket/env/server"
 import { ORPCError } from "@orpc/server"
 import { and, eq } from "drizzle-orm"
 import { nanoid } from "nanoid"
@@ -146,6 +147,7 @@ export async function createBugReportUploadSession(input: {
   tags?: string[] | undefined
 }): Promise<{
   bugReportId: string
+  uploadMode: "auto" | "proxy" | "direct"
   captureUpload: {
     headers: Record<string, string>
     key: string
@@ -236,6 +238,7 @@ export async function createBugReportUploadSession(input: {
 
   return {
     bugReportId: result.bugReportId,
+    uploadMode: env.STORAGE_UPLOAD_MODE ?? "auto",
     captureUpload: {
       ...result.captureUpload,
       key: result.captureKey,

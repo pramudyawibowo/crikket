@@ -51,6 +51,9 @@ export const env = createEnv({
     STORAGE_REGION: z.string().min(1).optional(),
     STORAGE_ENDPOINT: z.url().optional(),
     STORAGE_ADDRESSING_STYLE: z.enum(["auto", "path", "virtual"]).optional(),
+    STORAGE_UPLOAD_MODE: z
+      .enum(["auto", "proxy", "direct"])
+      .default("auto"),
     STORAGE_ACCESS_KEY_ID: z.string().min(1).optional(),
     STORAGE_SECRET_ACCESS_KEY: z.string().min(1).optional(),
     STORAGE_PUBLIC_URL: z.url().optional(),
