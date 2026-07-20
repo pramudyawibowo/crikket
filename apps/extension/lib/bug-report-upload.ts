@@ -7,6 +7,16 @@ import type { Priority } from "@crikket/shared/constants/priorities"
 import type { BugReportVisibility } from "@crikket/shared/constants/bug-report"
 import { client } from "./orpc"
 
+async function blobToBase64(blob: Blob): Promise<string> {
+  const buffer = await blob.arrayBuffer()
+  const bytes = new Uint8Array(buffer)
+  let binary = ""
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i])
+  }
+  return btoa(binary)
+}
+
 export async function submitBugReportWithUploads(input: {
   attachment: Blob
   attachmentType: "video" | "screenshot"
@@ -50,7 +60,17 @@ export async function submitBugReportWithUploads(input: {
     input.debuggerPayload
   )
   const uploads: Promise<void>[] = [
-    uploadArtifactToStorage(uploadSession.captureUpload, input.attachment),
+    uploadArtifactToStorage(uploadSession.captureUpload, input.attachment, {
+      fallback: async () => {
+        const base64Data = await blobToBase64(input.attachment)
+        await client.bugReport.uploadProxy({
+          id: uploadSession.bugReportId,
+          artifactKind: "capture",
+          base64Data,
+          contentType: input.attachment.type || undefined,
+        })
+      },
+    }),
   ]
 
   if (uploadSession.debuggerUpload && debuggerArtifact) {
@@ -60,6 +80,16 @@ export async function submitBugReportWithUploads(input: {
         debuggerArtifact.blob,
         {
           contentEncoding: debuggerArtifact.contentEncoding,
+          fallback: async () => {
+            const base64Data = await blobToBase64(debuggerArtifact.blob)
+            await client.bugReport.uploadProxy({
+              id: uploadSession.bugReportId,
+              artifactKind: "debugger",
+              base64Data,
+              contentType: "application/json",
+              contentEncoding: debuggerArtifact.contentEncoding,
+            })
+          },
         }
       )
     )

@@ -85,6 +85,14 @@ export const finalizeBugReportUploadInputSchema = z.object({
     .optional(),
 })
 
+export const uploadArtifactProxyInputSchema = z.object({
+  id: z.string().min(1),
+  artifactKind: z.enum(["capture", "debugger"]),
+  base64Data: z.string().min(1),
+  contentType: z.string().max(MAX_CONTENT_TYPE_LENGTH).optional(),
+  contentEncoding: z.string().max(MAX_CONTENT_ENCODING_LENGTH).optional(),
+})
+
 type CreateBugReportUploadSessionInput = z.infer<
   typeof createBugReportUploadSessionInputSchema
 >
@@ -402,6 +410,56 @@ export async function finalizeBugReportUpload(input: {
     warnings,
     debugger: debuggerPersistence,
   }
+}
+
+export async function uploadArtifactProxy(input: {
+  input: z.infer<typeof uploadArtifactProxyInputSchema>
+  organizationId: string
+}): Promise<{ success: true }> {
+  const uploadSession = await db.query.bugReportUploadSession.findFirst({
+    where: and(
+      eq(bugReportUploadSession.id, input.input.id),
+      eq(bugReportUploadSession.organizationId, input.organizationId)
+    ),
+  })
+
+  if (!uploadSession) {
+    throw new ORPCError("NOT_FOUND", {
+      message: "Bug report upload session not found",
+    })
+  }
+
+  if (uploadSession.expiresAt.getTime() <= Date.now()) {
+    throw new ORPCError("BAD_REQUEST", {
+      message: "Bug report upload session expired. Start a new submission.",
+    })
+  }
+
+  const key =
+    input.input.artifactKind === "capture"
+      ? uploadSession.captureKey
+      : uploadSession.debuggerKey
+
+  if (!key) {
+    throw new ORPCError("BAD_REQUEST", {
+      message: `No ${input.input.artifactKind} artifact registered for this session`,
+    })
+  }
+
+  const storage = getStorageProvider()
+  const buffer = Buffer.from(input.input.base64Data, "base64")
+  const contentType =
+    input.input.contentType ??
+    (input.input.artifactKind === "capture"
+      ? uploadSession.captureContentType
+      : "application/json")
+
+  await storage.save(key, buffer, {
+    contentType: contentType ?? undefined,
+    contentEncoding: input.input.contentEncoding,
+  })
+
+  return { success: true }
 }
 
 async function finalizeBugReportDebuggerIngestion(input: {

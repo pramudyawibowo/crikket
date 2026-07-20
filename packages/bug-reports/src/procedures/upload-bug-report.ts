@@ -9,6 +9,8 @@ import {
   createBugReportUploadSessionInputSchema,
   finalizeBugReportUpload,
   finalizeBugReportUploadInputSchema,
+  uploadArtifactProxy,
+  uploadArtifactProxyInputSchema,
 } from "../lib/upload-session"
 import { protectedProcedure } from "./context"
 import { normalizeTags, requireActiveOrgId } from "./helpers"
@@ -23,6 +25,17 @@ export const createBugReportUpload = protectedProcedure
       organizationId: activeOrgId,
       reporterId: context.session.user.id,
       tags: normalizeTags(input.tags),
+    })
+  })
+
+export const uploadArtifactProxyProcedure = protectedProcedure
+  .input(uploadArtifactProxyInputSchema)
+  .handler(({ context, input }) => {
+    const activeOrgId = requireActiveOrgId(context.session)
+
+    return uploadArtifactProxy({
+      input,
+      organizationId: activeOrgId,
     })
   })
 

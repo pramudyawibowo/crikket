@@ -9,9 +9,12 @@ export interface DirectUploadTarget {
 export async function uploadArtifactToStorage(
   target: DirectUploadTarget,
   blob: Blob,
-  options?: { contentEncoding?: string }
+  options?: {
+    contentEncoding?: string
+    fallback?: () => Promise<void>
+  }
 ): Promise<void> {
-  let response: Response
+  let response: Response | null = null
 
   try {
     response = await fetch(target.url, {
@@ -26,6 +29,10 @@ export async function uploadArtifactToStorage(
       mode: "cors",
     })
   } catch (error) {
+    if (options?.fallback) {
+      await options.fallback()
+      return
+    }
     throw new Error(
       "Direct upload to storage failed before the server responded. Check storage CORS and network access, then retry.",
       {
@@ -35,6 +42,10 @@ export async function uploadArtifactToStorage(
   }
 
   if (!response.ok) {
+    if (options?.fallback) {
+      await options.fallback()
+      return
+    }
     throw new Error(`Artifact upload failed with status ${response.status}.`)
   }
 }

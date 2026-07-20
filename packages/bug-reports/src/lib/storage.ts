@@ -15,7 +15,11 @@ import { nanoid } from "nanoid"
 import type { BugReportArtifactKind } from "./artifact-storage"
 
 export interface StorageProvider {
-  save(filename: string, data: Buffer | Blob): Promise<void>
+  save(
+    filename: string,
+    data: Buffer | Blob,
+    options?: { contentType?: string; contentEncoding?: string }
+  ): Promise<void>
   getUrl(filename: string): Promise<string>
   createUploadUrl(input: {
     filename: string
@@ -89,8 +93,13 @@ export function createS3StorageProvider(
   }
 
   return {
-    async save(filename: string, data: Buffer | Blob): Promise<void> {
-      const contentType = getMimeTypeFromFilename(filename)
+    async save(
+      filename: string,
+      data: Buffer | Blob,
+      saveOptions?: { contentType?: string; contentEncoding?: string }
+    ): Promise<void> {
+      const contentType =
+        saveOptions?.contentType ?? getMimeTypeFromFilename(filename)
       try {
         const body = await normalizeUploadBody(data)
         await client.send(
@@ -99,6 +108,7 @@ export function createS3StorageProvider(
             Key: filename,
             Body: body,
             ContentType: contentType ?? undefined,
+            ContentEncoding: saveOptions?.contentEncoding ?? undefined,
           })
         )
       } catch (error) {
