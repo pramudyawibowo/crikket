@@ -125,14 +125,19 @@ STORAGE_REGION=auto
 STORAGE_BUCKET=crikket-bucket
 STORAGE_ACCESS_KEY_ID=minioadmin
 STORAGE_SECRET_ACCESS_KEY=minioadmin
-STORAGE_ADDRESSING_STYLE=path # Optional (auto defaults to path-style for non-AWS custom endpoints)
-STORAGE_UPLOAD_MODE=auto      # Optional: auto (default), proxy, or direct
+STORAGE_ADDRESSING_STYLE=path        # Optional (auto defaults to path-style for non-AWS custom endpoints)
+STORAGE_UPLOAD_MODE=auto             # Optional: auto (default), proxy, or direct
+STORAGE_UPLOAD_CHUNK_SIZE_MB=50      # Optional: chunk size in MB (1 - 100, default 50)
 ```
 
 Upload modes (`STORAGE_UPLOAD_MODE`):
 - `auto`: Tries direct S3 upload first, with automatic backend proxy fallback if direct S3 upload fails (e.g. CORS or unreachable S3 URL).
 - `proxy`: Forces all uploads through the backend server (ideal when MinIO is only accessible inside an internal Docker network).
 - `direct`: Forces direct S3 uploads only (no backend proxy fallback).
+
+Chunked proxy uploading (`STORAGE_UPLOAD_CHUNK_SIZE_MB`):
+- When proxying uploads through the backend server, files larger than the chunk size are automatically split into chunk parts.
+- This bypasses Cloudflare's **100MB request body size limit** (413 Payload Too Large error) when the server is deployed behind Cloudflare.
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full workflow.
 

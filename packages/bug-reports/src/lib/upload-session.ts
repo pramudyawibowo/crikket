@@ -1,3 +1,6 @@
+import fs from "node:fs/promises"
+import os from "node:os"
+import path from "node:path"
 import { db } from "@crikket/db"
 import {
   bugReport,
@@ -94,6 +97,16 @@ export const uploadArtifactProxyInputSchema = z.object({
   contentEncoding: z.string().max(MAX_CONTENT_ENCODING_LENGTH).optional(),
 })
 
+export const uploadArtifactProxyChunkInputSchema = z.object({
+  id: z.string().min(1),
+  artifactKind: z.enum(["capture", "debugger"]),
+  partIndex: z.number().int().nonnegative(),
+  totalParts: z.number().int().positive(),
+  base64Chunk: z.string().min(1),
+  contentType: z.string().max(MAX_CONTENT_TYPE_LENGTH).optional(),
+  contentEncoding: z.string().max(MAX_CONTENT_ENCODING_LENGTH).optional(),
+})
+
 type CreateBugReportUploadSessionInput = z.infer<
   typeof createBugReportUploadSessionInputSchema
 >
@@ -148,6 +161,7 @@ export async function createBugReportUploadSession(input: {
 }): Promise<{
   bugReportId: string
   uploadMode: "auto" | "proxy" | "direct"
+  uploadChunkSizeMB: number
   captureUpload: {
     headers: Record<string, string>
     key: string
@@ -239,6 +253,7 @@ export async function createBugReportUploadSession(input: {
   return {
     bugReportId: result.bugReportId,
     uploadMode: env.STORAGE_UPLOAD_MODE ?? "auto",
+    uploadChunkSizeMB: env.STORAGE_UPLOAD_CHUNK_SIZE_MB ?? 50,
     captureUpload: {
       ...result.captureUpload,
       key: result.captureKey,
@@ -463,6 +478,90 @@ export async function uploadArtifactProxy(input: {
   })
 
   return { success: true }
+}
+
+export async function uploadArtifactProxyChunk(input: {
+  input: z.infer<typeof uploadArtifactProxyChunkInputSchema>
+  organizationId: string
+}): Promise<{ completed: boolean; partIndex: number; totalParts: number }> {
+  const uploadSession = await db.query.bugReportUploadSession.findFirst({
+    where: and(
+      eq(bugReportUploadSession.id, input.input.id),
+      eq(bugReportUploadSession.organizationId, input.organizationId)
+    ),
+  })
+
+  if (!uploadSession) {
+    throw new ORPCError("NOT_FOUND", {
+      message: "Bug report upload session not found",
+    })
+  }
+
+  if (uploadSession.expiresAt.getTime() <= Date.now()) {
+    throw new ORPCError("BAD_REQUEST", {
+      message: "Bug report upload session expired. Start a new submission.",
+    })
+  }
+
+  const key =
+    input.input.artifactKind === "capture"
+      ? uploadSession.captureKey
+      : uploadSession.debuggerKey
+
+  if (!key) {
+    throw new ORPCError("BAD_REQUEST", {
+      message: `No ${input.input.artifactKind} artifact registered for this session`,
+    })
+  }
+
+  const tempDir = path.join(os.tmpdir(), "crikket-upload-chunks")
+  await fs.mkdir(tempDir, { recursive: true })
+  const tempFilePath = path.join(
+    tempDir,
+    `chunk-${input.input.id}-${input.input.artifactKind}.tmp`
+  )
+
+  if (input.input.partIndex === 0) {
+    try {
+      await fs.unlink(tempFilePath)
+    } catch {
+      // Ignore if file doesn't exist yet
+    }
+  }
+
+  const chunkBuffer = Buffer.from(input.input.base64Chunk, "base64")
+  await fs.appendFile(tempFilePath, chunkBuffer)
+
+  const isLastPart = input.input.partIndex === input.input.totalParts - 1
+
+  if (isLastPart) {
+    try {
+      const fullBuffer = await fs.readFile(tempFilePath)
+      const storage = getStorageProvider()
+      const contentType =
+        input.input.contentType ??
+        (input.input.artifactKind === "capture"
+          ? uploadSession.captureContentType
+          : "application/json")
+
+      await storage.save(key, fullBuffer, {
+        contentType: contentType ?? undefined,
+        contentEncoding: input.input.contentEncoding,
+      })
+    } finally {
+      try {
+        await fs.unlink(tempFilePath)
+      } catch {
+        // Ignore
+      }
+    }
+  }
+
+  return {
+    completed: isLastPart,
+    partIndex: input.input.partIndex,
+    totalParts: input.input.totalParts,
+  }
 }
 
 async function finalizeBugReportDebuggerIngestion(input: {

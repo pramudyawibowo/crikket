@@ -17,6 +17,49 @@ async function blobToBase64(blob: Blob): Promise<string> {
   return btoa(binary)
 }
 
+async function uploadProxyArtifactWithChunking(input: {
+  bugReportId: string
+  artifactKind: "capture" | "debugger"
+  blob: Blob
+  contentType?: string
+  contentEncoding?: string
+  chunkSizeMB?: number
+}): Promise<void> {
+  const chunkSizeMB = input.chunkSizeMB ?? 50
+  const chunkSizeBytes = chunkSizeMB * 1024 * 1024
+
+  if (input.blob.size <= chunkSizeBytes) {
+    const base64Data = await blobToBase64(input.blob)
+    await client.bugReport.uploadProxy({
+      id: input.bugReportId,
+      artifactKind: input.artifactKind,
+      base64Data,
+      contentType: input.contentType,
+      contentEncoding: input.contentEncoding,
+    })
+    return
+  }
+
+  const totalParts = Math.ceil(input.blob.size / chunkSizeBytes)
+
+  for (let i = 0; i < totalParts; i++) {
+    const start = i * chunkSizeBytes
+    const end = Math.min((i + 1) * chunkSizeBytes, input.blob.size)
+    const chunkBlob = input.blob.slice(start, end)
+    const base64Chunk = await blobToBase64(chunkBlob)
+
+    await client.bugReport.uploadProxyChunk({
+      id: input.bugReportId,
+      artifactKind: input.artifactKind,
+      partIndex: i,
+      totalParts,
+      base64Chunk,
+      contentType: input.contentType,
+      contentEncoding: input.contentEncoding,
+    })
+  }
+}
+
 export async function submitBugReportWithUploads(input: {
   attachment: Blob
   attachmentType: "video" | "screenshot"
@@ -60,15 +103,16 @@ export async function submitBugReportWithUploads(input: {
     input.debuggerPayload
   )
   const uploadMode = uploadSession.uploadMode ?? "auto"
+  const chunkSizeMB = uploadSession.uploadChunkSizeMB ?? 50
 
   const performCaptureUpload = async () => {
     if (uploadMode === "proxy") {
-      const base64Data = await blobToBase64(input.attachment)
-      await client.bugReport.uploadProxy({
-        id: uploadSession.bugReportId,
+      await uploadProxyArtifactWithChunking({
+        bugReportId: uploadSession.bugReportId,
         artifactKind: "capture",
-        base64Data,
+        blob: input.attachment,
         contentType: input.attachment.type || undefined,
+        chunkSizeMB,
       })
       return
     }
@@ -76,12 +120,12 @@ export async function submitBugReportWithUploads(input: {
     const fallback =
       uploadMode === "auto"
         ? async () => {
-            const base64Data = await blobToBase64(input.attachment)
-            await client.bugReport.uploadProxy({
-              id: uploadSession.bugReportId,
+            await uploadProxyArtifactWithChunking({
+              bugReportId: uploadSession.bugReportId,
               artifactKind: "capture",
-              base64Data,
+              blob: input.attachment,
               contentType: input.attachment.type || undefined,
+              chunkSizeMB,
             })
           }
         : undefined
@@ -101,13 +145,13 @@ export async function submitBugReportWithUploads(input: {
     }
 
     if (uploadMode === "proxy") {
-      const base64Data = await blobToBase64(debuggerArtifact.blob)
-      await client.bugReport.uploadProxy({
-        id: uploadSession.bugReportId,
+      await uploadProxyArtifactWithChunking({
+        bugReportId: uploadSession.bugReportId,
         artifactKind: "debugger",
-        base64Data,
+        blob: debuggerArtifact.blob,
         contentType: "application/json",
         contentEncoding: debuggerArtifact.contentEncoding,
+        chunkSizeMB,
       })
       return
     }
@@ -115,13 +159,13 @@ export async function submitBugReportWithUploads(input: {
     const fallback =
       uploadMode === "auto"
         ? async () => {
-            const base64Data = await blobToBase64(debuggerArtifact.blob)
-            await client.bugReport.uploadProxy({
-              id: uploadSession.bugReportId,
+            await uploadProxyArtifactWithChunking({
+              bugReportId: uploadSession.bugReportId,
               artifactKind: "debugger",
-              base64Data,
+              blob: debuggerArtifact.blob,
               contentType: "application/json",
               contentEncoding: debuggerArtifact.contentEncoding,
+              chunkSizeMB,
             })
           }
         : undefined

@@ -10,6 +10,8 @@ import {
   finalizeBugReportUpload,
   finalizeBugReportUploadInputSchema,
   uploadArtifactProxy,
+  uploadArtifactProxyChunk,
+  uploadArtifactProxyChunkInputSchema,
   uploadArtifactProxyInputSchema,
 } from "../lib/upload-session"
 import { protectedProcedure } from "./context"
@@ -34,6 +36,17 @@ export const uploadArtifactProxyProcedure = protectedProcedure
     const activeOrgId = requireActiveOrgId(context.session)
 
     return uploadArtifactProxy({
+      input,
+      organizationId: activeOrgId,
+    })
+  })
+
+export const uploadArtifactProxyChunkProcedure = protectedProcedure
+  .input(uploadArtifactProxyChunkInputSchema)
+  .handler(({ context, input }) => {
+    const activeOrgId = requireActiveOrgId(context.session)
+
+    return uploadArtifactProxyChunk({
       input,
       organizationId: activeOrgId,
     })

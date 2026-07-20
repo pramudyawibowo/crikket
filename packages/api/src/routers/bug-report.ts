@@ -21,6 +21,7 @@ import {
   createBugReportUpload,
   finalizeBugReportUploadProcedure,
   retryBugReportDebuggerIngestionProcedure,
+  uploadArtifactProxyChunkProcedure,
   uploadArtifactProxyProcedure,
 } from "@crikket/bug-reports/procedures/upload-bug-report"
 
@@ -32,6 +33,7 @@ export const bugReportRouter = {
   list: listBugReports,
   createUpload: createBugReportUpload,
   uploadProxy: uploadArtifactProxyProcedure,
+  uploadProxyChunk: uploadArtifactProxyChunkProcedure,
   finalizeUpload: finalizeBugReportUploadProcedure,
   retryDebuggerIngestion: retryBugReportDebuggerIngestionProcedure,
   getById: getBugReportById,

@@ -54,6 +54,12 @@ export const env = createEnv({
     STORAGE_UPLOAD_MODE: z
       .enum(["auto", "proxy", "direct"])
       .default("auto"),
+    STORAGE_UPLOAD_CHUNK_SIZE_MB: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(100)
+      .default(50),
     STORAGE_ACCESS_KEY_ID: z.string().min(1).optional(),
     STORAGE_SECRET_ACCESS_KEY: z.string().min(1).optional(),
     STORAGE_PUBLIC_URL: z.url().optional(),
