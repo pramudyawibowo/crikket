@@ -96,6 +96,38 @@ Default local ports:
 - `server`: `http://localhost:3000`
 - `docs`: `http://localhost:4000`
 
+### Optional Configurations
+
+#### Custom OAuth OIDC Authentication
+Crikket supports custom OIDC providers (such as Keycloak, Authentik, or Casdoor).
+
+To enable OIDC login:
+1. In `apps/server/.env`:
+   ```env
+   CUSTOM_OIDC_CLIENT_ID=your_client_id
+   CUSTOM_OIDC_CLIENT_SECRET=your_client_secret
+   CUSTOM_OIDC_ISSUER_URL=https://auth.example.com
+   CUSTOM_OIDC_PROVIDER_NAME=Keycloak # Optional display name on login button
+   ```
+2. In `apps/web/.env`:
+   ```env
+   NEXT_PUBLIC_CUSTOM_OIDC_ENABLED=true
+   NEXT_PUBLIC_CUSTOM_OIDC_PROVIDER_NAME=Keycloak
+   ```
+3. In your OIDC provider settings, register the OAuth callback URL:
+   `<BETTER_AUTH_URL>/api/auth/oauth2/callback/custom-oidc`
+
+#### MinIO / RustFS S3 Storage
+For local or custom S3-compatible storage:
+```env
+STORAGE_ENDPOINT=http://localhost:9000
+STORAGE_REGION=auto
+STORAGE_BUCKET=crikket-bucket
+STORAGE_ACCESS_KEY_ID=minioadmin
+STORAGE_SECRET_ACCESS_KEY=minioadmin
+STORAGE_ADDRESSING_STYLE=path # Optional (auto defaults to path-style for non-AWS custom endpoints)
+```
+
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full workflow.
 
 ## Embed Crikket In Your Product
