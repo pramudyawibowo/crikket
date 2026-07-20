@@ -8,6 +8,7 @@ import { Button } from "@crikket/ui/components/ui/button"
 import { Field, FieldError, FieldLabel } from "@crikket/ui/components/ui/field"
 import { Input } from "@crikket/ui/components/ui/input"
 import { useForm } from "@tanstack/react-form"
+import { KeyRound } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "nextjs-toploader/app"
 import { parseAsString, useQueryState } from "nuqs"
@@ -27,6 +28,10 @@ export function SignInForm() {
   const { data: session, isPending } = authClient.useSession()
   const [isSocialSignInPending, setIsSocialSignInPending] = useState(false)
   const isGoogleAuthEnabled = env.NEXT_PUBLIC_GOOGLE_AUTH_ENABLED
+  const isOidcEnabled = env.NEXT_PUBLIC_CUSTOM_OIDC_ENABLED
+  const oidcProviderName =
+    env.NEXT_PUBLIC_CUSTOM_OIDC_PROVIDER_NAME ?? "SSO"
+  const hasSocialAuth = isGoogleAuthEnabled || isOidcEnabled
   const callbackURL = useMemo(() => {
     try {
       const appUrl = new URL(env.NEXT_PUBLIC_APP_URL)
@@ -105,6 +110,29 @@ export function SignInForm() {
     setIsSocialSignInPending(false)
   }
 
+  const handleOidcSignIn = async () => {
+    setIsSocialSignInPending(true)
+
+    const result = await authClient.signIn
+      .oauth2({
+        providerId: "custom-oidc",
+        callbackURL,
+      })
+      .catch(() => null)
+
+    if (!result) {
+      toast.error("Unable to reach the auth server. Please try again.")
+      setIsSocialSignInPending(false)
+      return
+    }
+
+    if (result.error) {
+      toast.error(getAuthErrorMessage(result.error))
+    }
+
+    setIsSocialSignInPending(false)
+  }
+
   if (isPending) {
     return (
       <div className="flex min-h-[400px] items-center justify-center">
@@ -122,18 +150,34 @@ export function SignInForm() {
       description="Sign in to your account to continue"
       title="Welcome back"
     >
-      {isGoogleAuthEnabled ? (
+      {hasSocialAuth ? (
         <>
-          <Button
-            className="h-12 w-full font-semibold text-base shadow-sm transition-all hover:bg-muted/50 hover:shadow-md active:scale-[0.98]"
-            disabled={isSocialSignInPending || form.state.isSubmitting}
-            onClick={handleGoogleSignIn}
-            type="button"
-            variant="outline"
-          >
-            <Icons.google className="mr-3 h-5 w-5" />
-            Continue with Google
-          </Button>
+          <div className="grid gap-3">
+            {isGoogleAuthEnabled ? (
+              <Button
+                className="h-12 w-full font-semibold text-base shadow-sm transition-all hover:bg-muted/50 hover:shadow-md active:scale-[0.98]"
+                disabled={isSocialSignInPending || form.state.isSubmitting}
+                onClick={handleGoogleSignIn}
+                type="button"
+                variant="outline"
+              >
+                <Icons.google className="mr-3 h-5 w-5" />
+                Continue with Google
+              </Button>
+            ) : null}
+            {isOidcEnabled ? (
+              <Button
+                className="h-12 w-full font-semibold text-base shadow-sm transition-all hover:bg-muted/50 hover:shadow-md active:scale-[0.98]"
+                disabled={isSocialSignInPending || form.state.isSubmitting}
+                onClick={handleOidcSignIn}
+                type="button"
+                variant="outline"
+              >
+                <KeyRound className="mr-3 h-5 w-5" />
+                Continue with {oidcProviderName}
+              </Button>
+            ) : null}
+          </div>
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
               <span className="w-full border-muted border-t" />

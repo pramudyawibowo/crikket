@@ -12,6 +12,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle"
 import { APIError } from "better-auth/api"
 import { admin } from "better-auth/plugins/admin"
 import { emailOTP } from "better-auth/plugins/email-otp"
+import { genericOAuth } from "better-auth/plugins/generic-oauth"
 import { organization } from "better-auth/plugins/organization"
 
 import {
@@ -46,6 +47,25 @@ const socialProviders =
         },
       }
     : undefined
+
+const oidcPlugins =
+  env.CUSTOM_OIDC_CLIENT_ID &&
+  env.CUSTOM_OIDC_CLIENT_SECRET &&
+  env.CUSTOM_OIDC_ISSUER_URL
+    ? [
+        genericOAuth({
+          config: [
+            {
+              providerId: "custom-oidc",
+              clientId: env.CUSTOM_OIDC_CLIENT_ID,
+              clientSecret: env.CUSTOM_OIDC_CLIENT_SECRET,
+              discoveryUrl: `${env.CUSTOM_OIDC_ISSUER_URL}/.well-known/openid-configuration`,
+              scopes: ["openid", "profile", "email"],
+            },
+          ],
+        }),
+      ]
+    : []
 
 type CheckoutProductSlug = "pro" | "pro-yearly" | "studio" | "studio-yearly"
 
@@ -243,6 +263,7 @@ export const auth = betterAuth({
       allowedAttempts: 5,
       storeOTP: "hashed",
     }),
+    ...oidcPlugins,
     ...paymentsPlugins,
   ],
 })

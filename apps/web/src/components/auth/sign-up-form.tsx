@@ -2,14 +2,16 @@
 
 import { authClient } from "@crikket/auth/client"
 import { env } from "@crikket/env/web"
+import { Icons } from "@crikket/ui/components/icons"
 import { Loader } from "@crikket/ui/components/loader"
 import { Button } from "@crikket/ui/components/ui/button"
 import { Field, FieldError, FieldLabel } from "@crikket/ui/components/ui/field"
 import { Input } from "@crikket/ui/components/ui/input"
 import { useForm } from "@tanstack/react-form"
+import { KeyRound } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "nextjs-toploader/app"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { toast } from "sonner"
 import { AuthShell } from "@/components/auth/auth-shell"
 import { AUTH_MIN_PASSWORD_LENGTH, getAuthErrorMessage } from "@/lib/auth"
@@ -18,6 +20,12 @@ import { registerFormSchema } from "@/lib/schema/auth"
 export function SignUpForm() {
   const router = useRouter()
   const { data: session, isPending } = authClient.useSession()
+  const [isSocialSignInPending, setIsSocialSignInPending] = useState(false)
+  const isGoogleAuthEnabled = env.NEXT_PUBLIC_GOOGLE_AUTH_ENABLED
+  const isOidcEnabled = env.NEXT_PUBLIC_CUSTOM_OIDC_ENABLED
+  const oidcProviderName =
+    env.NEXT_PUBLIC_CUSTOM_OIDC_PROVIDER_NAME ?? "SSO"
+  const hasSocialAuth = isGoogleAuthEnabled || isOidcEnabled
 
   const form = useForm({
     defaultValues: {
@@ -66,6 +74,52 @@ export function SignUpForm() {
     }
   }, [router, session])
 
+  const handleGoogleSignIn = async () => {
+    setIsSocialSignInPending(true)
+
+    const result = await authClient.signIn
+      .social({
+        provider: "google",
+        callbackURL: env.NEXT_PUBLIC_APP_URL,
+      })
+      .catch(() => null)
+
+    if (!result) {
+      toast.error("Unable to reach the auth server. Please try again.")
+      setIsSocialSignInPending(false)
+      return
+    }
+
+    if (result.error) {
+      toast.error(getAuthErrorMessage(result.error))
+    }
+
+    setIsSocialSignInPending(false)
+  }
+
+  const handleOidcSignIn = async () => {
+    setIsSocialSignInPending(true)
+
+    const result = await authClient.signIn
+      .oauth2({
+        providerId: "custom-oidc",
+        callbackURL: env.NEXT_PUBLIC_APP_URL,
+      })
+      .catch(() => null)
+
+    if (!result) {
+      toast.error("Unable to reach the auth server. Please try again.")
+      setIsSocialSignInPending(false)
+      return
+    }
+
+    if (result.error) {
+      toast.error(getAuthErrorMessage(result.error))
+    }
+
+    setIsSocialSignInPending(false)
+  }
+
   if (isPending) {
     return (
       <div className="flex min-h-[400px] items-center justify-center">
@@ -83,6 +137,47 @@ export function SignUpForm() {
       description="Create your account to get started"
       title="Create account"
     >
+      {hasSocialAuth ? (
+        <>
+          <div className="grid gap-3">
+            {isGoogleAuthEnabled ? (
+              <Button
+                className="h-12 w-full font-semibold text-base shadow-sm transition-all hover:bg-muted/50 hover:shadow-md active:scale-[0.98]"
+                disabled={isSocialSignInPending || form.state.isSubmitting}
+                onClick={handleGoogleSignIn}
+                type="button"
+                variant="outline"
+              >
+                <Icons.google className="mr-3 h-5 w-5" />
+                Continue with Google
+              </Button>
+            ) : null}
+            {isOidcEnabled ? (
+              <Button
+                className="h-12 w-full font-semibold text-base shadow-sm transition-all hover:bg-muted/50 hover:shadow-md active:scale-[0.98]"
+                disabled={isSocialSignInPending || form.state.isSubmitting}
+                onClick={handleOidcSignIn}
+                type="button"
+                variant="outline"
+              >
+                <KeyRound className="mr-3 h-5 w-5" />
+                Continue with {oidcProviderName}
+              </Button>
+            ) : null}
+          </div>
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-muted border-t" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-card px-2 font-medium text-muted-foreground">
+                Or continue with email
+              </span>
+            </div>
+          </div>
+        </>
+      ) : null}
+
       <form
         className="grid gap-4"
         onSubmit={(event) => {
@@ -209,7 +304,7 @@ export function SignUpForm() {
 
         <Button
           className="h-11 w-full font-semibold"
-          disabled={form.state.isSubmitting}
+          disabled={form.state.isSubmitting || isSocialSignInPending}
           type="submit"
         >
           {form.state.isSubmitting ? "Creating account..." : "Sign up"}
