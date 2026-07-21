@@ -19,7 +19,8 @@ import {
 import { Textarea } from "@crikket/ui/components/ui/textarea"
 import { useForm } from "@tanstack/react-form"
 import { AlertTriangle } from "lucide-react"
-import { type SyntheticEvent, useCallback, useEffect, useRef } from "react"
+import { type SyntheticEvent, useCallback, useEffect, useRef, useState } from "react"
+import { ScreenshotAnnotator } from "./screenshot-annotator"
 import * as z from "zod"
 
 const priorityValues = Object.values(PRIORITY_OPTIONS) as [
@@ -56,11 +57,13 @@ interface FormStepProps {
   submitError: string | null
   preSubmitWarnings: string[]
   debuggerSummary: DebuggerSummary
+  onScreenshotAnnotated?: (blob: Blob) => void
   onSubmit: (values: {
     title: string
     description: string
     priority: Priority
     visibility: BugReportVisibility
+    annotatedBlob?: Blob
   }) => void
   onCancel: () => void
 }
@@ -85,6 +88,7 @@ export function FormStep({
   onSubmit,
   onCancel,
 }: FormStepProps) {
+  const [annotatedBlob, setAnnotatedBlob] = useState<Blob | null>(null)
   const defaultValues: FormValues = {
     title: initialTitle,
     description: "",
@@ -103,6 +107,7 @@ export function FormStep({
         description: value.description,
         priority: value.priority,
         visibility: value.visibility,
+        annotatedBlob: annotatedBlob ?? undefined,
       })
     },
   })
@@ -192,10 +197,9 @@ export function FormStep({
               </video>
             </div>
           ) : (
-            <img
-              alt="Screenshot preview"
-              className="max-h-[400px] w-full bg-black object-contain"
-              src={previewUrl}
+            <ScreenshotAnnotator 
+              previewUrl={previewUrl} 
+              onSave={setAnnotatedBlob}
             />
           )}
         </div>

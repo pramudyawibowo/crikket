@@ -322,8 +322,9 @@ function App() {
     description: string
     priority: Priority
     visibility: BugReportVisibility
+    annotatedBlob?: Blob
   }) => {
-    const blob = captureType === "video" ? recordedBlob : screenshotBlob
+    const blob = values.annotatedBlob ?? (captureType === "video" ? recordedBlob : screenshotBlob)
     if (!blob || blob.size === 0) {
       setSubmitError("Capture data is missing. Please capture again.")
       setState("stopped")
