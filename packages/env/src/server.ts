@@ -36,7 +36,12 @@ export const env = createEnv({
             .filter((origin) => origin.length > 0) ?? []
       ),
     RESEND_API_KEY: z.string().min(1).optional(),
-    RESEND_FROM_EMAIL: z.email().optional(),
+    RESEND_FROM_EMAIL: z.string().optional(),
+    SMTP_HOST: z.string().optional(),
+    SMTP_PORT: z.coerce.number().optional(),
+    SMTP_USER: z.string().optional(),
+    SMTP_PASSWORD: z.string().optional(),
+    SMTP_FROM_EMAIL: z.string().optional(),
     ENABLE_PAYMENTS: z
       .enum(["true", "false"])
       .default("true")
