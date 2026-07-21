@@ -63,7 +63,6 @@ export interface DebuggerSessionSnapshot {
 }
 
 export interface BugReportDebuggerPayload {
-  domSnapshot?: string
   actions: Array<{
     type: string
     target?: string

@@ -1,7 +1,8 @@
 import { Separator } from "@crikket/ui/components/ui/separator"
 import { cn } from "@crikket/ui/lib/utils"
-import { Globe, Info, MousePointerClick, Terminal, FileCode2, Loader2, AlertCircle } from "lucide-react"
+import { AlertCircle, Globe, Info, Loader2, MousePointerClick, Terminal } from "lucide-react"
 import type { ReactNode } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { orpc } from "@/utils/orpc"
 
@@ -16,7 +17,7 @@ import type {
   SharedBugReport,
 } from "./types"
 
-export type SidebarTab = "details" | "console" | "network" | "actions" | "dom"
+export type SidebarTab = "details" | "console" | "network" | "actions"
 
 interface TimelineSidebarState {
   entries: DebuggerTimelineEntry[]
@@ -91,12 +92,6 @@ export function BugReportSidebar({
           label="Network"
           onClick={() => onTabChange("network")}
         />
-        <TabButton
-          active={activeTab === "dom"}
-          icon={<FileCode2 className="h-3.5 w-3.5" />}
-          label="DOM"
-          onClick={() => onTabChange("dom")}
-        />
         {tabAction ? <div className="shrink-0">{tabAction}</div> : null}
       </div>
 
@@ -147,12 +142,6 @@ export function BugReportSidebar({
           </div>
         )}
 
-        {activeTab === "dom" && (
-          <div className="flex h-full flex-col p-4">
-            <DomSnapshotPanel bugReportId={bugReportId} />
-          </div>
-        )}
-
         {activeTab === "actions" && (
           <ReproductionStepsList
             actions={timeline.actions.actions}
@@ -193,45 +182,6 @@ export function BugReportSidebar({
   )
 }
 
-function DomSnapshotPanel({ bugReportId }: { bugReportId: string }) {
-  const { data, isLoading, error } = useQuery(
-    orpc.bugReport.getDomSnapshot.queryOptions({
-      input: { id: bugReportId },
-    })
-  )
-
-  if (isLoading) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center space-y-2">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        <p className="text-sm text-muted-foreground">Loading DOM snapshot...</p>
-      </div>
-    )
-  }
-
-  if (error || !data?.domSnapshot) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center space-y-2 p-6 text-center">
-        <AlertCircle className="h-8 w-8 text-muted-foreground" />
-        <h3 className="font-semibold">DOM Snapshot Unavailable</h3>
-        <p className="text-sm text-muted-foreground">
-          {error?.message || "This bug report does not have a DOM snapshot captured."}
-        </p>
-      </div>
-    )
-  }
-
-  return (
-    <div className="flex h-full flex-col rounded-md border shadow-inner">
-      <iframe
-        className="h-full w-full bg-white"
-        srcDoc={data.domSnapshot}
-        title="DOM Snapshot"
-        sandbox="allow-same-origin"
-      />
-    </div>
-  )
-}
 
 function TabButton({
   active,

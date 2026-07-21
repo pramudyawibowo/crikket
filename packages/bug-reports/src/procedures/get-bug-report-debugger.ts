@@ -1,10 +1,5 @@
 import { buildPaginationMeta } from "@crikket/shared/lib/server/pagination"
 import { ORPCError } from "@orpc/server"
-import { db } from "@crikket/db"
-import { bugReport } from "@crikket/db/schema/bug-report"
-import { eq } from "drizzle-orm"
-import { gunzipSync } from "node:zlib"
-import { getStorageProvider } from "../lib/storage"
 
 import {
   countBugReportNetworkRequests,
@@ -86,46 +81,6 @@ export const getBugReportNetworkRequestPayload = o
     return payload
   })
 
-export const getBugReportDomSnapshot = o
-  .input(bugReportIdInputSchema)
-  .handler(async ({ context, input }) => {
-    await assertBugReportAccessById({
-      id: input.id,
-      session: context.session,
-    })
-
-    const report = await db.query.bugReport.findFirst({
-      where: eq(bugReport.id, input.id),
-      columns: {
-        debuggerKey: true,
-        debuggerContentEncoding: true,
-      },
-    })
-
-    if (!report || !report.debuggerKey) {
-      throw new ORPCError("NOT_FOUND", { message: "DOM Snapshot not found" })
-    }
-
-    const storage = getStorageProvider()
-    
-    try {
-      const storedPayload = await storage.read(report.debuggerKey)
-      const payloadBuffer =
-        report.debuggerContentEncoding === "gzip"
-          ? gunzipSync(storedPayload)
-          : storedPayload
-      
-      const rawPayload = JSON.parse(payloadBuffer.toString("utf8")) as {
-        domSnapshot?: string
-      }
-
-      return {
-        domSnapshot: rawPayload.domSnapshot ?? null,
-      }
-    } catch (e) {
-      throw new ORPCError("INTERNAL_SERVER_ERROR", { message: "Failed to read DOM snapshot" })
-    }
-  })
 
 export const getBugReportNetworkMarkers = o
   .input(bugReportIdInputSchema)

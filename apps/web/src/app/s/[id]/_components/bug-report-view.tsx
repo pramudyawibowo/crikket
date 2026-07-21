@@ -52,7 +52,6 @@ const SIDEBAR_TABS = [
   "actions",
   "console",
   "network",
-  "dom",
 ] as const satisfies readonly SidebarTab[]
 const EMPTY_SELECTION: SelectedEntryIds = {
   action: null,
