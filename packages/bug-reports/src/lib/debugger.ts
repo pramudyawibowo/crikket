@@ -6,7 +6,17 @@ import {
 } from "@crikket/db/schema/bug-report"
 import { reportNonFatalError } from "@crikket/shared/lib/errors"
 import { retryOnUniqueViolation } from "@crikket/shared/lib/server/retry-on-unique-violation"
-import { and, asc, count, eq, ilike, or, sql } from "drizzle-orm"
+import {
+  and,
+  asc,
+  count,
+  eq,
+  ilike,
+  or,
+  gte,
+  isNull,
+  sql,
+} from "drizzle-orm"
 import { nanoid } from "nanoid"
 import { z } from "zod"
 
@@ -138,6 +148,39 @@ export interface BugReportNetworkRequestsPageInput {
 export interface BugReportNetworkRequestPayloadInput {
   bugReportId: string
   requestId: string
+}
+
+export interface BugReportNetworkMarker {
+  id: string
+  method: string
+  url: string
+  status: number | null
+  offset: number | null
+}
+
+export async function getBugReportNetworkMarkers(
+  bugReportId: string
+): Promise<BugReportNetworkMarker[]> {
+  return db
+    .select({
+      id: bugReportNetworkRequest.id,
+      method: bugReportNetworkRequest.method,
+      url: bugReportNetworkRequest.url,
+      status: bugReportNetworkRequest.status,
+      offset: bugReportNetworkRequest.offset,
+    })
+    .from(bugReportNetworkRequest)
+    .where(
+      and(
+        eq(bugReportNetworkRequest.bugReportId, bugReportId),
+        or(
+          gte(bugReportNetworkRequest.status, 400),
+          eq(bugReportNetworkRequest.status, 0),
+          isNull(bugReportNetworkRequest.status)
+        )
+      )
+    )
+    .orderBy(bugReportNetworkRequest.timestamp)
 }
 
 export async function clearBugReportDebuggerData(
@@ -359,12 +402,30 @@ export async function persistBugReportDebuggerData(
     try {
       await retryOnUniqueViolation(async () => {
         await db.insert(bugReportNetworkRequest).values(
-          networkRequests.map((request) => ({
-            id: nanoid(16),
-            bugReportId,
-            method: request.method,
-            url: request.url,
-            status: request.status ?? null,
+          networkRequests.map((request) => {
+            let url = request.url
+            if (url.includes("graphql") && request.requestBody) {
+              try {
+                const body = JSON.parse(request.requestBody)
+                let op = body.operationName
+                if (!op && body.query) {
+                  const match = body.query.match(/(query|mutation)\s+(\w+)/)
+                  if (match && match[2]) op = match[2]
+                }
+                if (op) {
+                  const urlObj = new URL(url)
+                  urlObj.searchParams.set("graphql_op", op)
+                  url = urlObj.toString()
+                }
+              } catch (e) {}
+            }
+
+            return {
+              id: nanoid(16),
+              bugReportId,
+              method: request.method,
+              url,
+              status: request.status ?? null,
             duration: request.duration ?? null,
             requestHeaders: request.requestHeaders,
             responseHeaders: request.responseHeaders,
@@ -372,7 +433,8 @@ export async function persistBugReportDebuggerData(
             responseBody: request.responseBody,
             timestamp: new Date(request.timestamp),
             offset: normalizeOffset(request.offset),
-          }))
+            }
+          })
         )
       })
       persisted.networkRequests = networkRequests.length

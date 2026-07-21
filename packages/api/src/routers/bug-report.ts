@@ -5,6 +5,8 @@ import {
 import { getBugReportById } from "@crikket/bug-reports/procedures/get-bug-report"
 import {
   getBugReportDebuggerEvents,
+  getBugReportDomSnapshot,
+  getBugReportNetworkMarkers,
   getBugReportNetworkRequestPayload,
   getBugReportNetworkRequests,
 } from "@crikket/bug-reports/procedures/get-bug-report-debugger"
@@ -38,6 +40,8 @@ export const bugReportRouter = {
   retryDebuggerIngestion: retryBugReportDebuggerIngestionProcedure,
   getById: getBugReportById,
   getDebuggerEvents: getBugReportDebuggerEvents,
+  getDomSnapshot: getBugReportDomSnapshot,
+  getNetworkMarkers: getBugReportNetworkMarkers,
   getNetworkRequests: getBugReportNetworkRequests,
   getNetworkRequestPayload: getBugReportNetworkRequestPayload,
   getDashboardStats: getBugReportDashboardStats,

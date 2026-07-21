@@ -71,6 +71,8 @@ export const createBugReportUploadSessionInputSchema = z.object({
       browser: z.string().optional(),
       os: z.string().optional(),
       viewport: z.string().optional(),
+      memory: z.number().optional(),
+      connection: z.string().optional(),
     })
     .optional(),
   captureContentType: z.string().max(MAX_CONTENT_TYPE_LENGTH).optional(),

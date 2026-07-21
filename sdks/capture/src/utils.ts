@@ -95,15 +95,19 @@ export function getDeviceInfo(): {
   browser?: string
   os?: string
   viewport?: string
+  memory?: number
+  connection?: string
 } {
   if (typeof navigator === "undefined" || typeof window === "undefined") {
     return {}
   }
-
+  const nav = navigator as any
   return {
-    browser: navigator.userAgent || undefined,
-    os: navigator.platform || undefined,
+    browser: navigator.userAgent,
+    os: navigator.platform,
     viewport: `${window.innerWidth}x${window.innerHeight}`,
+    memory: nav.deviceMemory,
+    connection: nav.connection?.effectiveType || nav.connection?.type,
   }
 }
 

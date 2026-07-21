@@ -29,4 +29,6 @@ export interface DeviceInfo {
   browser?: string
   os?: string
   viewport?: string
+  memory?: number
+  connection?: string
 }

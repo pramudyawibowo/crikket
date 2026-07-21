@@ -2,12 +2,14 @@ import { reportNonFatalError } from "@crikket/shared/lib/errors"
 import { InteractiveImageViewer } from "@crikket/ui/components/interactive-image-viewer"
 import { FileText } from "lucide-react"
 import { forwardRef, type SyntheticEvent, useCallback, useRef } from "react"
+import { CustomVideoPlayer, type VideoMarker } from "./custom-video-player"
 import type { SharedBugReport } from "./types"
 
 interface BugReportCanvasProps {
   data: SharedBugReport
   onTimeUpdate?: (currentTimeMs: number) => void
   compact?: boolean
+  markers?: VideoMarker[]
 }
 
 function getMetadataDurationMs(metadata: unknown): number | null {
@@ -26,7 +28,7 @@ function getMetadataDurationMs(metadata: unknown): number | null {
 export const BugReportCanvas = forwardRef<
   HTMLVideoElement,
   BugReportCanvasProps
->(({ data, onTimeUpdate, compact = false }, ref) => {
+>(({ data, onTimeUpdate, compact = false, markers = [] }, ref) => {
   const showVideo =
     data.attachmentType === "video" && Boolean(data.attachmentUrl)
   const showImage =
@@ -112,24 +114,24 @@ export const BugReportCanvas = forwardRef<
         }
       >
         {showVideo ? (
-          // biome-ignore lint/a11y/useMediaCaption: uploaded bug recordings do not have caption tracks yet
-          <video
+          <CustomVideoPlayer
             className={
               compact
-                ? "h-auto w-full bg-black object-contain outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                : "max-h-full max-w-full rounded-lg bg-black object-contain shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                ? "h-auto w-full"
+                : "h-full w-full max-h-full max-w-full rounded-lg shadow-sm"
             }
-            controls
+            videoClassName="bg-black object-contain focus-visible:ring-2 focus-visible:ring-ring"
             onLoadedMetadata={handleLoadedMetadata}
-            onTimeUpdate={(event) => {
+            onTimeUpdate={(currentTimeMs) => {
               if (isPrimingDurationRef.current) {
                 return
               }
-              onTimeUpdate?.(event.currentTarget.currentTime * 1000)
+              onTimeUpdate?.(currentTimeMs)
             }}
-            preload="metadata"
             ref={ref}
             src={data.attachmentUrl ?? undefined}
+            durationMs={metadataDurationMs}
+            markers={markers}
           />
         ) : showImage ? (
           <InteractiveImageViewer

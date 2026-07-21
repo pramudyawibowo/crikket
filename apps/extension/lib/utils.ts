@@ -2,10 +2,13 @@
  * Get device info for the current browser
  */
 export function getDeviceInfo() {
+  const nav = navigator as any
   return {
     browser: navigator.userAgent,
     os: navigator.platform,
     viewport: `${window.innerWidth}x${window.innerHeight}`,
+    memory: nav.deviceMemory,
+    connection: nav.connection?.effectiveType || nav.connection?.type,
   }
 }
 

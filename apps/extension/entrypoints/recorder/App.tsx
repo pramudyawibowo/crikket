@@ -150,8 +150,28 @@ function App() {
     }
 
     const payload = buildDebuggerSubmissionPayload(snapshot)
+    
+    let domSnapshot: string | undefined
+    if (snapshot.captureTabId) {
+      try {
+        const [result] = await chrome.scripting.executeScript({
+          target: { tabId: snapshot.captureTabId },
+          func: () => document.documentElement.outerHTML,
+        })
+        if (result?.result) {
+          domSnapshot = result.result as string
+        }
+      } catch (e) {
+        // Ignored, tab might be closed or permission denied
+      }
+    }
+    
+    if (domSnapshot) {
+      payload.domSnapshot = domSnapshot
+    }
+
     const summary = getDebuggerCaptureSummary(payload)
-    const hasPayloadData = hasDebuggerPayloadData(payload)
+    const hasPayloadData = hasDebuggerPayloadData(payload) || Boolean(payload.domSnapshot)
 
     if (!hasPayloadData) {
       warnings.push(

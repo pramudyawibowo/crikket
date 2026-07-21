@@ -52,6 +52,7 @@ const SIDEBAR_TABS = [
   "actions",
   "console",
   "network",
+  "dom",
 ] as const satisfies readonly SidebarTab[]
 const EMPTY_SELECTION: SelectedEntryIds = {
   action: null,
@@ -256,6 +257,7 @@ function renderBugReportLoadedView(input: {
   sidebarProps: React.ComponentProps<typeof BugReportSidebar>
   desktopVideoRef: React.RefObject<HTMLVideoElement | null>
   mobileVideoRef: React.RefObject<HTMLVideoElement | null>
+  videoMarkers: Array<{ id: string; offset: number; label: string; type: "error" | "info" }>
 }) {
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background">
@@ -314,6 +316,7 @@ function renderBugReportLoadedView(input: {
                   data={input.data}
                   onTimeUpdate={input.onTimeUpdate}
                   ref={input.desktopVideoRef}
+                  markers={input.videoMarkers}
                 />
               </div>
             </ResizablePanel>
@@ -337,6 +340,7 @@ function renderBugReportLoadedView(input: {
                 data={input.data}
                 onTimeUpdate={input.onTimeUpdate}
                 ref={input.mobileVideoRef}
+                markers={input.videoMarkers}
               />
             </div>
           )}
@@ -419,6 +423,13 @@ export function BugReportView({ id }: BugReportViewProps) {
     })
   )
 
+  const networkMarkersQuery = useQuery(
+    orpc.bugReport.getNetworkMarkers.queryOptions({
+      input: { id },
+      enabled: Boolean(id) && data?.attachmentType === "video",
+    })
+  )
+
   const debuggerEvents = debuggerEventsQuery.data ?? {
     actions: [],
     logs: [],
@@ -427,6 +438,18 @@ export function BugReportView({ id }: BugReportViewProps) {
   const networkRequests = useMemo(() => {
     return networkRequestsQuery.data?.pages.flatMap((page) => page.items) ?? []
   }, [networkRequestsQuery.data])
+
+  const videoMarkers = useMemo(() => {
+    if (!networkMarkersQuery.data) return []
+    return networkMarkersQuery.data
+      .filter((m) => m.offset !== null)
+      .map((m) => ({
+        id: m.id,
+        offset: m.offset as number,
+        label: `${m.status === 0 ? "Failed" : m.status} ${m.method} ${m.url}`,
+        type: "error" as const,
+      }))
+  }, [networkMarkersQuery.data])
 
   const desktopVideoRef = useRef<HTMLVideoElement | null>(null)
   const mobileVideoRef = useRef<HTMLVideoElement | null>(null)
@@ -603,6 +626,7 @@ export function BugReportView({ id }: BugReportViewProps) {
     isMobileVideoHidden,
     isReady: Boolean(isReady),
     mobileVideoRef,
+    videoMarkers,
     onRetryDebuggerIngestion: () => retryIngestionMutation.mutate(),
     onTimeUpdate: setPlaybackOffsetMs,
     onToggleEditSheet: setIsEditSheetOpen,
