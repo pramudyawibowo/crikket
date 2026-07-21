@@ -3,8 +3,9 @@ import type { auth } from "../index"
 
 export type SessionContext = typeof auth.$Infer.Session
 
-const { protectedProcedure } = createSessionProcedures<SessionContext>({
-  isAuthorized: (session) => Boolean(session?.user),
-})
+const { publicProcedure, protectedProcedure } =
+  createSessionProcedures<SessionContext>({
+    isAuthorized: (session) => Boolean(session?.user),
+  })
 
-export { protectedProcedure }
+export { publicProcedure, protectedProcedure }

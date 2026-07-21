@@ -17,6 +17,7 @@ import { toast } from "sonner"
 import { AuthShell } from "@/components/auth/auth-shell"
 import { getAuthErrorMessage } from "@/lib/auth"
 import { loginFormSchema } from "@/lib/schema/auth"
+import { client } from "@/utils/orpc"
 
 export function SignInForm() {
   const router = useRouter()
@@ -26,11 +27,25 @@ export function SignInForm() {
     parseAsString.withDefault(env.NEXT_PUBLIC_APP_URL)
   )
   const { data: session, isPending } = authClient.useSession()
+  const [publicAuthConfig, setPublicAuthConfig] = useState<{
+    isGoogleAuthEnabled: boolean
+    isCustomOidcEnabled: boolean
+    customOidcProviderName: string
+  } | null>(null)
+
+  useEffect(() => {
+    client.auth.getPublicConfig().then(setPublicAuthConfig).catch(() => null)
+  }, [])
+
   const [isSocialSignInPending, setIsSocialSignInPending] = useState(false)
-  const isGoogleAuthEnabled = env.NEXT_PUBLIC_GOOGLE_AUTH_ENABLED
-  const isOidcEnabled = env.NEXT_PUBLIC_CUSTOM_OIDC_ENABLED
+  const isGoogleAuthEnabled =
+    publicAuthConfig?.isGoogleAuthEnabled ?? env.NEXT_PUBLIC_GOOGLE_AUTH_ENABLED
+  const isOidcEnabled =
+    publicAuthConfig?.isCustomOidcEnabled ?? env.NEXT_PUBLIC_CUSTOM_OIDC_ENABLED
   const oidcProviderName =
-    env.NEXT_PUBLIC_CUSTOM_OIDC_PROVIDER_NAME ?? "SSO"
+    publicAuthConfig?.customOidcProviderName ??
+    env.NEXT_PUBLIC_CUSTOM_OIDC_PROVIDER_NAME ??
+    "SSO"
   const hasSocialAuth = isGoogleAuthEnabled || isOidcEnabled
   const callbackURL = useMemo(() => {
     try {
