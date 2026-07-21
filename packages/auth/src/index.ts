@@ -15,11 +15,13 @@ import { emailOTP } from "better-auth/plugins/email-otp"
 import { genericOAuth } from "better-auth/plugins/generic-oauth"
 import { organization } from "better-auth/plugins/organization"
 
+import { and, eq } from "drizzle-orm"
 import {
   sendEmailOtpEmail,
   sendEmailVerificationLinkEmail,
   sendOrganizationInvitationEmail,
 } from "./lib/email/auth-emails"
+import { syncOidcUserToOrganizations } from "./lib/oidc-org-sync"
 
 const MINUTE = 60
 const HOUR = 60 * MINUTE
@@ -159,6 +161,30 @@ export const auth = betterAuth({
             throw new APIError("UNPROCESSABLE_ENTITY", {
               message: `Sign up is only available for ${allowedSignupDomains.filter((d) => d !== "*").join(", ")} domains.`,
             })
+          }
+        },
+      },
+    },
+    session: {
+      create: {
+        after: async (sessionData) => {
+          try {
+            const oidcAccount = await db.query.account.findFirst({
+              where: and(
+                eq(schema.account.userId, sessionData.userId),
+                eq(schema.account.providerId, "custom-oidc")
+              ),
+            })
+
+            if (oidcAccount) {
+              await syncOidcUserToOrganizations({
+                userId: sessionData.userId,
+                accessToken: oidcAccount.accessToken ?? undefined,
+                idToken: oidcAccount.idToken ?? undefined,
+              })
+            }
+          } catch {
+            // Ignore org sync errors silently
           }
         },
       },

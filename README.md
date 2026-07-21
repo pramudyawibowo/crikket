@@ -107,15 +107,16 @@ To enable OIDC login:
    CUSTOM_OIDC_CLIENT_ID=your_client_id
    CUSTOM_OIDC_CLIENT_SECRET=your_client_secret
    CUSTOM_OIDC_ISSUER_URL=https://auth.example.com
-   CUSTOM_OIDC_PROVIDER_NAME=Keycloak # Optional display name on login button
+   CUSTOM_OIDC_PROVIDER_NAME=Gitea   # Optional display name on login button
+   CUSTOM_OIDC_ADMIN_GROUPS=owners,admin # Optional: groups that grant org admin role
    ```
-2. In `apps/web/.env`:
-   ```env
-   NEXT_PUBLIC_CUSTOM_OIDC_ENABLED=true
-   NEXT_PUBLIC_CUSTOM_OIDC_PROVIDER_NAME=Keycloak
-   ```
-3. In your OIDC provider settings, register the OAuth callback URL:
+2. In your OIDC provider settings, register the OAuth callback URL:
    `<BETTER_AUTH_URL>/api/auth/oauth2/callback/custom-oidc`
+
+##### OIDC Group to Organization Auto-Mapping:
+- OIDC user groups (from Gitea, Keycloak, Authentik, etc.) are automatically mapped to Crikket organizations by lowercasing the group name (e.g., `ADS-Digital-Partner` maps to `ads-digital-partner`).
+- If a matching organization exists, the user is added automatically. Users matching `CUSTOM_OIDC_ADMIN_GROUPS` (e.g., `owners`) receive the **admin** role; others receive the **member** role.
+- If no organization matches, the user is redirected to the **Create Organization** screen upon login.
 
 #### MinIO / RustFS S3 Storage
 For local or custom S3-compatible storage:

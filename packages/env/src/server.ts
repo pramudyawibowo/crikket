@@ -52,6 +52,20 @@ export const env = createEnv({
     CUSTOM_OIDC_CLIENT_SECRET: z.string().min(1).optional(),
     CUSTOM_OIDC_ISSUER_URL: z.url().optional(),
     CUSTOM_OIDC_PROVIDER_NAME: z.string().min(1).optional(),
+    CUSTOM_OIDC_ADMIN_GROUPS: z
+      .string()
+      .optional()
+      .transform(
+        (value) =>
+          value
+            ?.split(",")
+            .map((d) => d.trim().toLowerCase())
+            .filter((d) => d.length > 0) ?? ["owners", "admin", "admins"]
+      ),
+    CUSTOM_OIDC_SYNC_AVATAR: z
+      .enum(["true", "false"])
+      .default("true")
+      .transform((v) => v === "true"),
     STORAGE_BUCKET: z.string().min(1).optional(),
     STORAGE_REGION: z.string().min(1).optional(),
     STORAGE_ENDPOINT: z.url().optional(),
@@ -74,7 +88,7 @@ export const env = createEnv({
     TURNSTILE_SITE_KEY: z.string().min(1).optional(),
     TURNSTILE_SECRET_KEY: z.string().min(1).optional(),
     NODE_ENV: z
-      .enum(["development", "production", "staging"])
+      .enum(["development", "production", "staging", "test", "local"])
       .default("development"),
   },
   runtimeEnv: process.env,
