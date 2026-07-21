@@ -1,5 +1,5 @@
 import { db } from "@crikket/db"
-import { member, session, user } from "@crikket/db/schema/auth"
+import { account, member, session, user } from "@crikket/db/schema/auth"
 import { env } from "@crikket/env/server"
 import { and, eq } from "drizzle-orm"
 import { nanoid } from "nanoid"
@@ -27,7 +27,8 @@ export function extractOidcGroups(profile: Record<string, unknown>): string[] {
             (obj.name as string) ??
             (obj.slug as string) ??
             (obj.group as string) ??
-            (obj.path as string)
+            (obj.path as string) ??
+            (obj.username as string)
           )
         }
         return null
@@ -43,6 +44,77 @@ export function extractOidcGroups(profile: Record<string, unknown>): string[] {
   }
 
   return []
+}
+
+/**
+ * Parses groups from a JWT idToken payload.
+ */
+export function parseJwtIdTokenGroups(idToken?: string): string[] {
+  if (!idToken) return []
+  try {
+    const parts = idToken.split(".")
+    if (parts.length < 2 || !parts[1]) return []
+
+    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/")
+    const jsonPayload = Buffer.from(base64, "base64").toString("utf-8")
+    const payload = JSON.parse(jsonPayload) as Record<string, unknown>
+
+    return extractOidcGroups(payload)
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Fetches organizations and teams directly from Gitea REST API if available.
+ */
+export async function fetchGiteaUserOrgsAndTeams(
+  issuerUrl: string,
+  accessToken: string
+): Promise<string[]> {
+  const groups: string[] = []
+  const issuerBase = issuerUrl.replace(/\/$/, "")
+
+  // Fetch /api/v1/user/orgs (Gitea API)
+  try {
+    const orgsRes = await fetch(`${issuerBase}/api/v1/user/orgs`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+    if (orgsRes.ok) {
+      const orgs = (await orgsRes.json()) as Array<Record<string, unknown>>
+      for (const org of orgs) {
+        const name = (org.username as string) ?? (org.name as string) ?? (org.full_name as string)
+        if (typeof name === "string" && name.trim()) {
+          groups.push(name.trim())
+        }
+      }
+    }
+  } catch {}
+
+  // Fetch /api/v1/user/teams (Gitea API)
+  try {
+    const teamsRes = await fetch(`${issuerBase}/api/v1/user/teams`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+    if (teamsRes.ok) {
+      const teams = (await teamsRes.json()) as Array<Record<string, unknown>>
+      for (const team of teams) {
+        const name = team.name as string
+        if (typeof name === "string" && name.trim()) {
+          groups.push(name.trim())
+        }
+        if (typeof team.organization === "object" && team.organization !== null) {
+          const org = team.organization as Record<string, unknown>
+          const orgName = (org.username as string) ?? (org.name as string)
+          if (typeof orgName === "string" && orgName.trim()) {
+            groups.push(orgName.trim())
+          }
+        }
+      }
+    }
+  } catch {}
+
+  return groups
 }
 
 /**
@@ -94,9 +166,17 @@ export async function syncOidcUserToOrganizations(input: {
   idToken?: string
   rawGroups?: string[]
 }): Promise<{ syncedOrganizationsCount: number }> {
-  let groups: string[] = input.rawGroups ?? []
+  const groupSet = new Set<string>(input.rawGroups ?? [])
 
-  // If accessToken is present, fetch userinfo from OIDC issuer
+  // Parse idToken payload for claims
+  if (input.idToken) {
+    const idTokenGroups = parseJwtIdTokenGroups(input.idToken)
+    for (const g of idTokenGroups) {
+      groupSet.add(g)
+    }
+  }
+
+  // If accessToken is present, fetch userinfo & Gitea API endpoints
   if (input.accessToken && env.CUSTOM_OIDC_ISSUER_URL) {
     try {
       const userinfoUrl = `${env.CUSTOM_OIDC_ISSUER_URL.replace(/\/$/, "")}/userinfo`
@@ -108,8 +188,9 @@ export async function syncOidcUserToOrganizations(input: {
 
       if (response.ok) {
         const profile = (await response.json()) as Record<string, unknown>
-        if (groups.length === 0) {
-          groups = extractOidcGroups(profile)
+        const userinfoGroups = extractOidcGroups(profile)
+        for (const g of userinfoGroups) {
+          groupSet.add(g)
         }
 
         // Sync avatar image if enabled
@@ -127,8 +208,20 @@ export async function syncOidcUserToOrganizations(input: {
     } catch {
       // Ignore userinfo fetch errors silently
     }
+
+    // Try fetching Gitea API orgs/teams
+    try {
+      const giteaGroups = await fetchGiteaUserOrgsAndTeams(
+        env.CUSTOM_OIDC_ISSUER_URL,
+        input.accessToken
+      )
+      for (const g of giteaGroups) {
+        groupSet.add(g)
+      }
+    } catch {}
   }
 
+  const groups = Array.from(groupSet)
   if (groups.length === 0) {
     return { syncedOrganizationsCount: 0 }
   }
@@ -153,7 +246,7 @@ export async function syncOidcUserToOrganizations(input: {
 
   const targetRole = hasAdminGroup ? "admin" : "member"
 
-  // Fetch all existing organizations matching any of the group slugs
+  // Fetch all existing organizations matching any of the group slugs or names
   const allOrgs = await db.query.organization.findMany()
   const matchingOrgs = allOrgs.filter((org) => {
     const orgSlug = org.slug.toLowerCase()
@@ -207,4 +300,26 @@ export async function syncOidcUserToOrganizations(input: {
   }
 
   return { syncedOrganizationsCount: syncedCount }
+}
+
+/**
+ * Convenience helper to sync OIDC organizations for a user by userId.
+ */
+export async function syncOidcUserToOrganizationsForUser(userId: string) {
+  const oidcAccount = await db.query.account.findFirst({
+    where: and(
+      eq(account.userId, userId),
+      eq(account.providerId, "custom-oidc")
+    ),
+  })
+
+  if (!oidcAccount) {
+    return { syncedOrganizationsCount: 0 }
+  }
+
+  return await syncOidcUserToOrganizations({
+    userId,
+    accessToken: oidcAccount.accessToken ?? undefined,
+    idToken: oidcAccount.idToken ?? undefined,
+  })
 }

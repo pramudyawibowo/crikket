@@ -144,6 +144,23 @@ export const auth = betterAuth({
   trustedOrigins,
   ...(socialProviders ? { socialProviders } : {}),
   databaseHooks: {
+    account: {
+      create: {
+        after: async (accountData) => {
+          if (accountData.providerId === "custom-oidc") {
+            try {
+              await syncOidcUserToOrganizations({
+                userId: accountData.userId,
+                accessToken: accountData.accessToken ?? undefined,
+                idToken: accountData.idToken ?? undefined,
+              })
+            } catch {
+              // Ignore org sync errors silently
+            }
+          }
+        },
+      },
+    },
     user: {
       create: {
         before: async (user) => {

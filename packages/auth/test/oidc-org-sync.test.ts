@@ -3,6 +3,7 @@ import {
   extractOidcAvatar,
   extractOidcGroups,
   normalizeGroupSlug,
+  parseJwtIdTokenGroups,
 } from "../src/lib/oidc-org-sync"
 
 describe("extractOidcGroups", () => {
@@ -37,6 +38,26 @@ describe("extractOidcGroups", () => {
 
   it("returns empty array if no groups present", () => {
     expect(extractOidcGroups({})).toEqual([])
+  })
+})
+
+describe("parseJwtIdTokenGroups", () => {
+  it("decodes JWT id_token payload and extracts groups", () => {
+    const header = Buffer.from(JSON.stringify({ alg: "RS256" })).toString("base64url")
+    const payload = Buffer.from(
+      JSON.stringify({
+        sub: "user_123",
+        groups: ["ADS-Digital-Partner", "devs"],
+      })
+    ).toString("base64url")
+    const token = `${header}.${payload}.signature`
+
+    expect(parseJwtIdTokenGroups(token)).toEqual(["ADS-Digital-Partner", "devs"])
+  })
+
+  it("returns empty array for invalid JWT token", () => {
+    expect(parseJwtIdTokenGroups("invalid.jwt")).toEqual([])
+    expect(parseJwtIdTokenGroups(undefined)).toEqual([])
   })
 })
 
