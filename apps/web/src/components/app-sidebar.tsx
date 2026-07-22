@@ -36,6 +36,7 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
   user: typeof authClient.$Infer.Session.user
   organizations: Organization[]
   activeOrganization?: Organization
+  allowCreateOrganization?: boolean
 }
 
 const navPrimary = [
@@ -82,6 +83,7 @@ export function AppSidebar({
   user,
   organizations,
   activeOrganization,
+  allowCreateOrganization,
   ...props
 }: AppSidebarProps) {
   const pathname = usePathname()
@@ -94,6 +96,7 @@ export function AppSidebar({
           activeOrganization={activeOrganization}
           organizations={organizations}
           userId={user.id}
+          allowCreateOrganization={allowCreateOrganization}
         />
       </SidebarHeader>
       <SidebarContent className="gap-0">

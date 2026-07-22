@@ -32,12 +32,14 @@ interface TeamSwitcherProps {
   organizations: Organization[]
   activeOrganization?: Organization
   userId: string
+  allowCreateOrganization?: boolean
 }
 
 export function TeamSwitcher({
   organizations,
   activeOrganization,
   userId,
+  allowCreateOrganization,
 }: TeamSwitcherProps) {
   const { isMobile } = useSidebar()
   const { data: session, isPending: isSessionPending } = authClient.useSession()
@@ -218,18 +220,22 @@ export function TeamSwitcher({
                 </DropdownMenuItem>
               ))}
             </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="gap-2 p-2"
-              onClick={() => setShowCreateDialog(true)}
-            >
-              <div className="flex size-6 items-center justify-center rounded-md border bg-background">
-                <Plus className="size-4" />
-              </div>
-              <div className="font-medium text-muted-foreground">
-                Add organization
-              </div>
-            </DropdownMenuItem>
+            {allowCreateOrganization !== false && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="gap-2 p-2"
+                  onClick={() => setShowCreateDialog(true)}
+                >
+                  <div className="flex size-6 items-center justify-center rounded-md border bg-background">
+                    <Plus className="size-4" />
+                  </div>
+                  <div className="font-medium text-muted-foreground">
+                    Add organization
+                  </div>
+                </DropdownMenuItem>
+              </>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
         <CreateOrganizationDialog

@@ -21,7 +21,7 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
-  const { organizations, session } = await getProtectedAuthData()
+  const { organizations, session, allowCreateOrganization } = await getProtectedAuthData()
 
   if (!session) {
     redirect("/login")
@@ -61,6 +61,7 @@ export default async function DashboardLayout({
         activeOrganization={activeOrganization}
         organizations={organizations}
         user={session.user}
+        allowCreateOrganization={allowCreateOrganization}
       />
       <SidebarInset>
         <header className="sticky top-0 z-50 flex h-16 shrink-0 items-center justify-between gap-2 border-b bg-background px-4 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">

@@ -46,6 +46,10 @@ export const env = createEnv({
       .enum(["true", "false"])
       .default("true")
       .transform((v) => v === "true"),
+    ALLOW_CREATE_ORGANIZATION: z
+      .enum(["true", "false"])
+      .default("true")
+      .transform((v) => v === "true"),
     GOOGLE_CLIENT_ID: z.string().min(1).optional(),
     GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
     CUSTOM_OIDC_CLIENT_ID: z.string().min(1).optional(),

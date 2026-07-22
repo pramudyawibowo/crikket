@@ -1,4 +1,5 @@
 import { authClient } from "@crikket/auth/client"
+import { env } from "@crikket/env/server"
 import { headers } from "next/headers"
 import { cache } from "react"
 
@@ -48,5 +49,6 @@ export const getProtectedAuthData = cache(async () => {
   return {
     organizations: organizations ?? [],
     session,
+    allowCreateOrganization: env.ALLOW_CREATE_ORGANIZATION,
   }
 })
