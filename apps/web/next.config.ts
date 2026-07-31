@@ -16,14 +16,19 @@ const nextConfig: NextConfig = {
     ],
   },
   async rewrites() {
-    if (!process.env.NEXT_PUBLIC_POSTHOG_HOST) {
+    const posthogHost = process.env.NEXT_PUBLIC_POSTHOG_HOST
+    if (
+      !posthogHost ||
+      posthogHost.includes("__") ||
+      posthogHost.includes("CRIKKET_POSTHOG")
+    ) {
       return []
     }
 
     return [
       {
         source: "/ph/:path*",
-        destination: `${process.env.NEXT_PUBLIC_POSTHOG_HOST}/:path*`,
+        destination: `${posthogHost}/:path*`,
       },
     ]
   },
