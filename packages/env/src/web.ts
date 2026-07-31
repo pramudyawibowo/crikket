@@ -36,4 +36,7 @@ export const env = createEnv({
     NEXT_PUBLIC_POSTHOG_HOST: process.env.NEXT_PUBLIC_POSTHOG_HOST,
   },
   emptyStringAsUndefined: true,
+  skipValidation:
+    !!process.env.SKIP_ENV_VALIDATION ||
+    process.env.npm_lifecycle_event === "build",
 })
